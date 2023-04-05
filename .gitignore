@@ -14,3 +14,6 @@ _deps
 # JetBrains
 .idea
 cmake-build-debug
+
+# ignore project point cloud data
+project/data
