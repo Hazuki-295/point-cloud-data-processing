@@ -1,4 +1,4 @@
-# CMake
+# CMake .gitignore template
 CMakeLists.txt.user
 CMakeCache.txt
 CMakeFiles
@@ -13,3 +13,4 @@ _deps
 
 # JetBrains
 .idea
+cmake-build-debug
