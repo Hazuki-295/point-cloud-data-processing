@@ -12,7 +12,7 @@ def visualization(filename):
     # Create a visualization window
     vis = o3d.visualization.Visualizer()
     vis.create_window(window_name="Visualization — {}".format(os.path.basename(filename)),
-                      width=1000, height=800, left=200, top=150)
+                      width=1000, height=800, left=400, top=150)
     vis.add_geometry(pcd)
 
     # Run the visualizer
@@ -31,7 +31,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         filenames = sys.argv[1:]
     else:
-        print("No input filenames passed.\n")
+        print("Warning: No input filenames passed.")
         filenames.append("data/input/bunny.ply")
 
     # Create a thread for each object
