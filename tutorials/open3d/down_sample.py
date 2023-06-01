@@ -17,7 +17,7 @@ def down_sample(filename):
     base_name, extension = os.path.splitext(os.path.basename(filename))
     output_filename = base_name + " - downsampled" + extension
     filepath = os.path.join("data/output", output_filename)
-    o3d.io.write_point_cloud(filepath, down_sampled_pcd, write_ascii=True)
+    o3d.io.write_point_cloud(filepath, down_sampled_pcd, write_ascii=False)
 
 
 if __name__ == "__main__":
