@@ -1,12 +1,13 @@
 [
     {
         "type": "readers.las",
-        "filename": "../data/asset/iScan-Pcd-1-1.las"
+        "filename": ""
     },
     {
         "type": "writers.ply",
+        "filename": "",
         "storage_mode": "little endian",
-        "dims": "X, Y, Z, Intensity",
-        "filename": "../data/input/iScan-Pcd-1-1.ply"
+        "dims": "X=double, Y=double, Z=double, Intensity=uchar",
+        "sized_types": "false"
     }
 ]

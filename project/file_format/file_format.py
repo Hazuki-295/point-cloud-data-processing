@@ -12,11 +12,13 @@ def file_format(filename):
     # Input filename, readers.las -> filename
     json_data[0]["filename"] = filename
 
+    output_filepath = "../data/input"
+
     base_name, _ = os.path.splitext(os.path.basename(filename))
     output_filename = base_name + ".ply"
 
     # Output filename, writers.ply -> filename
-    json_data[1]["filename"] = os.path.join("../data/input", output_filename)
+    json_data[1]["filename"] = os.path.join(output_filepath, output_filename)
 
     # Convert the JSON object to a string
     json_string = json.dumps(json_data)
