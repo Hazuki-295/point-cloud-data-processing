@@ -7,7 +7,7 @@
         "type": "writers.ply",
         "filename": "",
         "storage_mode": "little endian",
-        "dims": "X=double, Y=double, Z=double, Intensity=uchar",
+        "dims": "X, Y, Z, Intensity=uchar",
         "sized_types": "false"
     }
 ]
