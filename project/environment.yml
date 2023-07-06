@@ -1,0 +1,13 @@
+name: point-cloud-library
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10.9
+  - pip
+  - numpy
+  - scipy
+  - jupyter
+  - matplotlib
+  - python-pdal
+  - pip:
+      - open3d==0.17.0
