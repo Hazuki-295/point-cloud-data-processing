@@ -13,6 +13,7 @@ def file_format(filename):
     json_data[0]["filename"] = filename
 
     output_filepath = "../data/input"
+    os.makedirs(output_filepath, exist_ok=True)
 
     base_name, _ = os.path.splitext(os.path.basename(filename))
     output_filename = base_name + ".ply"
