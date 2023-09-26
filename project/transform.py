@@ -1,7 +1,10 @@
+import json
 import os
+import re
 import sys
 import time
 from collections import Counter
+from datetime import datetime
 
 import numpy as np
 import open3d as o3d
@@ -25,10 +28,9 @@ def curve_fitting(point, point_num=None):
     return curve_point
 
 
-def transform(filename):
+def transform(file_path, start_mileage):
     # Load the input point cloud file
-    pcd = o3d.t.io.read_point_cloud(filename)
-    base_name, extension = os.path.splitext(os.path.basename(filename))
+    pcd = o3d.t.io.read_point_cloud(file_path)
 
     # Part 1. DBSCAN clustering
     # Mask by intensity to acquire low intensity points
@@ -144,7 +146,7 @@ def transform(filename):
 
     # Coordinate calculation
     x = sign_x * magnitude_PQ * sin_theta
-    y = cumulate_y[nearest_index]
+    y = start_mileage + cumulate_y[nearest_index]
     z = (np.dot(coordinates, normal_z) + d) / magnitude_z
 
     pcd.point.positions = np.column_stack((x, y, z))
@@ -157,20 +159,80 @@ def transform(filename):
     output_filename = os.path.join(output_path, base_name.replace("preprocessed", "transformed") + extension)
     o3d.t.io.write_point_cloud(output_filename, pcd)
 
+    end_mileage = start_mileage + cumulate_y[-1]
+    return end_mileage
+
+
+# Function to update the JSON structure with processing information
+def update_json(filename, start_mileage, end_mileage):
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    new_entry = {
+        "filename": filename,
+        "start_mileage": round(start_mileage, 2),
+        "end_mileage": round(end_mileage, 2),
+        "number_of_slices": int((end_mileage - start_mileage) // 10),
+        "slices": [],
+        "lastModified": now
+    }
+
+    # Check if an entry with the same filename already exists
+    existing_entry = next((entry for entry in json_data["files"] if entry["filename"] == filename), None)
+    if existing_entry is None:
+        json_data["files"].append(new_entry)
+    else:
+        existing_entry.update(new_entry)
+
+    json_data["lastModified"] = now
+
 
 if __name__ == "__main__":
-    filenames = []
-
-    if len(sys.argv) > 1:
-        filenames = sys.argv[1:]
-    else:
-        print("Warning: No input filenames passed.")
-        exit(-1)
-
-    output_path = "data/transformed"
+    # File directory
+    input_path = "data/preprocessed/"
+    output_path = "data/transformed/"
     os.makedirs(output_path, exist_ok=True)
 
+    # List of file paths to process
+    if len(sys.argv) > 1:
+        file_list = sys.argv[1:]
+    else:
+        file_list = [os.path.join(input_path, f"iScan-Pcd-1-{i} - preprocessed.ply") for i in range(1, 6)]
+
+    # Initialize the JSON data structure or load it if it exists
+    json_file_path = os.path.join(output_path, "analysis_results.json")
+    if os.path.exists(json_file_path):
+        with open(json_file_path, 'r') as output_file:
+            json_data = json.load(output_file)
+    else:
+        # If JSON file doesn't exist, create an empty structure
+        json_data = {
+            "resultName": "Railway Track Information",
+            "lastModified": None,
+            "files": []
+        }
+
+    # Process each file
     print("Point cloud transforming...")
-    for index, input_filename in enumerate(filenames):
-        print(f"Input [{index + 1}]: {input_filename}")
-        transform(input_filename)
+    for index, input_file_path in enumerate(file_list):
+        # Prompt current file path
+        base_name, extension = os.path.splitext(os.path.basename(input_file_path))
+        print(f"Input [{index + 1}]: {input_file_path}")
+
+        # Check if there is an entry corresponding to the previous file
+        pattern = r"iScan-Pcd-1-(\d+) - preprocessed.ply"
+        i_value = int(re.search(pattern, input_file_path).group(1))
+        if i_value > 1:
+            previous_file = f"iScan-Pcd-1-{i_value - 1}.ply"
+            previous_entry = next((entry for entry in json_data["files"] if entry["filename"] == previous_file), None)
+            if previous_entry is None:
+                print(f"Error: Entry for previous file {previous_file} not found in JSON data.")
+                exit(1)
+            previous_end_mileage = previous_entry["end_mileage"]
+        else:
+            previous_end_mileage = 0.0  # First file
+
+        current_end_mileage = transform(input_file_path, previous_end_mileage)
+        update_json(f"iScan-Pcd-1-{i_value}.ply", previous_end_mileage, current_end_mileage)
+
+    # Save the updated JSON data to the output directory
+    with open(json_file_path, 'w') as output_file:
+        json.dump(json_data, output_file, indent=2)
