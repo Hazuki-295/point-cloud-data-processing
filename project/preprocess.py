@@ -12,7 +12,7 @@ def preprocess(filename):
     down_sampled_pcd = pcd.uniform_down_sample(every_k_points=10)
 
     # Statistical outlier removal
-    filtered_pcd, _ = down_sampled_pcd.remove_statistical_outliers(nb_neighbors=20, std_ratio=2.0)
+    filtered_pcd, mask = down_sampled_pcd.remove_statistical_outliers(nb_neighbors=20, std_ratio=2.0)
 
     # Save the preprocessed point cloud to an output file
     base_name, extension = os.path.splitext(os.path.basename(filename))
@@ -29,7 +29,7 @@ if __name__ == "__main__":
         print("Warning: No input filenames passed.")
         exit(-1)
 
-    output_path = "data/preprocessed"
+    output_path = "data/preprocessed/"
     os.makedirs(output_path, exist_ok=True)
 
     for index, input_filename in enumerate(filenames):
