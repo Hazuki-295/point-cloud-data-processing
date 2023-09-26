@@ -30,7 +30,17 @@ def curve_fitting(point, point_num=None):
 
 def transform(file_path, start_mileage):
     # Load the input point cloud file
-    pcd = o3d.t.io.read_point_cloud(file_path)
+    if i_value > 1:
+        previous_remainder_filepath = os.path.join(input_path, f"iScan-Pcd-1-{i_value - 1} - remainder.ply")
+        remainder_pcd = o3d.t.io.read_point_cloud(previous_remainder_filepath)
+        current_pcd = o3d.t.io.read_point_cloud(file_path)
+
+        pcd = o3d.t.geometry.PointCloud()
+        pcd.point.positions = np.vstack((remainder_pcd.point.positions.numpy(), current_pcd.point.positions.numpy()))
+        pcd.point.intensity = np.vstack((remainder_pcd.point.intensity.numpy(), current_pcd.point.intensity.numpy()))
+
+    else:
+        pcd = o3d.t.io.read_point_cloud(file_path)
 
     # Part 1. DBSCAN clustering
     # Mask by intensity to acquire low intensity points
@@ -108,7 +118,7 @@ def transform(file_path, start_mileage):
     pcd_curve.point.colors = colors
 
     # Save the fitted curves for comparison
-    curve_filename = os.path.join("data/preprocessed/", base_name.replace("preprocessed", "curve") + extension)
+    curve_filename = os.path.join(input_path, base_name.replace("preprocessed", "curve") + extension)
     o3d.t.io.write_point_cloud(curve_filename, pcd_curve)
 
     # Part 3. RANSAC
@@ -149,17 +159,23 @@ def transform(file_path, start_mileage):
     y = start_mileage + cumulate_y[nearest_index]
     z = (np.dot(coordinates, normal_z) + d) / magnitude_z
 
-    pcd.point.positions = np.column_stack((x, y, z))
-
     end_time = time.time()
     elapsed_time = end_time - start_time
     print(f"- Elapsed time: {elapsed_time:.2f} seconds.\n")
 
-    # Crop the point cloud based on y coordinate
-    output_filename = os.path.join(output_path, base_name.replace("preprocessed", "transformed") + extension)
-    o3d.t.io.write_point_cloud(output_filename, pcd)
-
     end_mileage = start_mileage + cumulate_y[-1]
+
+    # Crop the point cloud based on y coordinate
+    mask = np.where(y >= (end_mileage // 10 * 10), True, False)
+    remainder_pcd = pcd.select_by_mask(mask)
+    remainder_filename = os.path.join(input_path, base_name.replace("preprocessed", "remainder") + extension)
+    o3d.t.io.write_point_cloud(remainder_filename, remainder_pcd)
+
+    pcd.point.positions = np.column_stack((x, y, z))
+
+    transformed_filename = os.path.join(output_path, base_name.replace("preprocessed", "transformed") + extension)
+    o3d.t.io.write_point_cloud(transformed_filename, pcd)
+
     return end_mileage
 
 
@@ -230,8 +246,9 @@ if __name__ == "__main__":
         else:
             previous_end_mileage = 0.0  # First file
 
-        current_end_mileage = transform(input_file_path, previous_end_mileage)
-        update_json(f"iScan-Pcd-1-{i_value}.ply", previous_end_mileage, current_end_mileage)
+        current_start_mileage = previous_end_mileage // 10 * 10
+        current_end_mileage = transform(input_file_path, current_start_mileage)
+        update_json(f"iScan-Pcd-1-{i_value}.ply", current_start_mileage, current_end_mileage)
 
     # Save the updated JSON data to the output directory
     with open(json_file_path, 'w') as output_file:
