@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 from collections import Counter
 
 import numpy as np
@@ -8,24 +9,26 @@ from scipy import interpolate
 from scipy.spatial import cKDTree
 
 
-def curve_fitting(point):
+def curve_fitting(point, point_num=None):
     # Input should be points that stored in a (n, 3) ndarray
-    point_num = point.shape[0]
-    point = np.transpose(point)  # (n, 3) -> (3, n)
+    if point_num is None:
+        point_num = point.shape[0]
 
     # Find the B-spline representation of an 3-D curve
-    tck, u = interpolate.splprep(point)
-    u_prime = np.linspace(u.min(), u.max(), point_num * 2)
+    point = np.transpose(point)  # (n, 3) -> (3, n)
+    tck, u = interpolate.splprep(point)  # B-spline representation
+    u_prime = np.linspace(u.min(), u.max(), point_num)
     knots = interpolate.splev(u_prime, tck)
-    curve_point = np.column_stack((knots[0], knots[1], knots[2]))
 
     # Return fitted curve point in a (n, 3) ndarray
+    curve_point = np.column_stack((knots[0], knots[1], knots[2]))
     return curve_point
 
 
 def transform(filename):
     # Load the input point cloud file
     pcd = o3d.t.io.read_point_cloud(filename)
+    base_name, extension = os.path.splitext(os.path.basename(filename))
 
     # Part 1. DBSCAN clustering
     # Mask by intensity to acquire low intensity points
@@ -38,10 +41,10 @@ def transform(filename):
     labels = labels.numpy()
 
     n_clusters = labels.max() + 1
-    print(f"DBSCAN clustering return {n_clusters} clusters.\n")
+    print(f"- DBSCAN clustering return {n_clusters} clusters.")
 
     if n_clusters < 2:
-        print("Warning: DBSCAN clustering return less than 2 clusters.")
+        print("- Warning: DBSCAN clustering return less than 2 clusters.")
         sys.exit(1)
 
     # Clusters will be labeled in a way that cluster with the most points is labeled 1
@@ -51,6 +54,7 @@ def transform(filename):
     # Sort by count
     sorted_items = sorted(counter.items(), key=lambda item: item[1], reverse=True)
     rank = [item[0] for item in sorted_items]
+    print("- Five largest clusters:", sorted_items[:5])
 
     # Convert mask to index
     index_of_mask = [i for i, boolean_val in enumerate(mask) if boolean_val]
@@ -88,7 +92,7 @@ def transform(filename):
     point_centre = (nearest_point + curve_point_right) / 2
 
     # Fit a curve on centre line
-    curve_point_centre = curve_fitting(point_centre)
+    curve_point_centre = curve_fitting(point_centre, point_centre.shape[0] * 2)  # more accurate
 
     # Step 3. Store three fitted curves to a separate file (debug)
     point = np.vstack((curve_point_left, curve_point_right, curve_point_centre))
@@ -102,7 +106,6 @@ def transform(filename):
     pcd_curve.point.colors = colors
 
     # Save the fitted curves for comparison
-    base_name, extension = os.path.splitext(os.path.basename(filename))
     curve_filename = os.path.join("data/preprocessed/", base_name.replace("preprocessed", "curve") + extension)
     o3d.t.io.write_point_cloud(curve_filename, pcd_curve)
 
@@ -111,6 +114,8 @@ def transform(filename):
     a, b, c, d = plane_model.numpy()  # ax + by + cz + d = 0
 
     # Part 4. Coordinate Transformation
+    start_time = time.time()
+
     # Coordinates in original coordinate system
     coordinates = pcd.point.positions.numpy()
 
@@ -143,6 +148,12 @@ def transform(filename):
     z = (np.dot(coordinates, normal_z) + d) / magnitude_z
 
     pcd.point.positions = np.column_stack((x, y, z))
+
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print(f"- Elapsed time: {elapsed_time:.2f} seconds.\n")
+
+    # Crop the point cloud based on y coordinate
     output_filename = os.path.join(output_path, base_name.replace("preprocessed", "transformed") + extension)
     o3d.t.io.write_point_cloud(output_filename, pcd)
 
@@ -159,6 +170,7 @@ if __name__ == "__main__":
     output_path = "data/transformed"
     os.makedirs(output_path, exist_ok=True)
 
+    print("Point cloud transforming...")
     for index, input_filename in enumerate(filenames):
-        print(f"Point cloud preprocessing [{index + 1}]: {input_filename}")
+        print(f"Input [{index + 1}]: {input_filename}")
         transform(input_filename)
