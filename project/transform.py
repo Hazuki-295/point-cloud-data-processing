@@ -56,7 +56,7 @@ def transform(file_path, start_mileage):
     print(f"- DBSCAN clustering return {n_clusters} clusters.")
 
     if n_clusters < 2:
-        print("- Warning: DBSCAN clustering return less than 2 clusters.")
+        print("- Error: DBSCAN clustering return less than 2 clusters.")
         sys.exit(1)
 
     # Clusters will be labeled in a way that cluster with the most points is labeled 1
@@ -179,13 +179,29 @@ def transform(file_path, start_mileage):
     return end_mileage
 
 
+# Initialize the JSON data structure or load it if it exists
+def initialize_json(file_path):
+    if os.path.exists(file_path):
+        with open(file_path, 'r') as file:
+            data = json.load(file)
+    else:
+        # If JSON file doesn't exist, create an empty structure
+        data = {
+            "resultName": "Railway Track Information",
+            "lastModified": None,
+            "files": []
+        }
+
+    return data
+
+
 # Function to update the JSON structure with processing information
 def update_json(filename, start_mileage, end_mileage):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     new_entry = {
         "filename": filename,
-        "start_mileage": round(start_mileage, 2),
-        "end_mileage": round(end_mileage, 2),
+        "start_mileage": start_mileage,
+        "end_mileage": end_mileage,
         "number_of_slices": int((end_mileage - start_mileage) // 10),
         "slices": [],
         "lastModified": now
@@ -213,18 +229,8 @@ if __name__ == "__main__":
     else:
         file_list = [os.path.join(input_path, f"iScan-Pcd-1-{i} - preprocessed.ply") for i in range(1, 6)]
 
-    # Initialize the JSON data structure or load it if it exists
     json_file_path = os.path.join(output_path, "analysis_results.json")
-    if os.path.exists(json_file_path):
-        with open(json_file_path, 'r') as output_file:
-            json_data = json.load(output_file)
-    else:
-        # If JSON file doesn't exist, create an empty structure
-        json_data = {
-            "resultName": "Railway Track Information",
-            "lastModified": None,
-            "files": []
-        }
+    json_data = initialize_json(json_file_path)
 
     # Process each file
     print("Point cloud transforming...")
@@ -234,7 +240,7 @@ if __name__ == "__main__":
         print(f"Input [{index + 1}]: {input_file_path}")
 
         # Check if there is an entry corresponding to the previous file
-        pattern = r"iScan-Pcd-1-(\d+) - preprocessed.ply"
+        pattern = r"iScan-Pcd-1-(\d+)"
         i_value = int(re.search(pattern, input_file_path).group(1))
         if i_value > 1:
             previous_file = f"iScan-Pcd-1-{i_value - 1}.ply"
@@ -251,5 +257,5 @@ if __name__ == "__main__":
         update_json(f"iScan-Pcd-1-{i_value}.ply", current_start_mileage, current_end_mileage)
 
     # Save the updated JSON data to the output directory
-    with open(json_file_path, 'w') as output_file:
-        json.dump(json_data, output_file, indent=2)
+    with open(json_file_path, 'w') as json_file:
+        json.dump(json_data, json_file, indent=2)
