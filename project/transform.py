@@ -80,13 +80,11 @@ def transform(file_path, start_mileage):
 
     # Part 2. Curve fitting
     # Step 1. Fit two curves on both left and right rails
-    left_rail_mask = (cluster == 1)
-    left_rail = pcd.select_by_mask(left_rail_mask)
+    left_rail = pcd.select_by_mask(cluster == 1)
     point_left = left_rail.point.positions.numpy()
     curve_point_left = curve_fitting(point_left)
 
-    right_rail_mask = (cluster == 2)
-    right_rail = pcd.select_by_mask(right_rail_mask)
+    right_rail = pcd.select_by_mask(cluster == 2)
     point_right = right_rail.point.positions.numpy()
     curve_point_right = curve_fitting(point_right)
 
@@ -179,20 +177,16 @@ def transform(file_path, start_mileage):
     return end_mileage
 
 
-# Initialize the JSON data structure or load it if it exists
+# If JSON file doesn't exist, create an empty structure
 def initialize_json(file_path):
-    if os.path.exists(file_path):
-        with open(file_path, 'r') as file:
-            data = json.load(file)
-    else:
-        # If JSON file doesn't exist, create an empty structure
-        data = {
+    if not os.path.exists(file_path):
+        template = {
             "resultName": "Railway Track Information",
             "lastModified": None,
             "files": []
         }
-
-    return data
+        with open(json_file_path, 'w') as file:
+            json.dump(template, file, indent=2)
 
 
 # Function to update the JSON structure with processing information
@@ -202,7 +196,7 @@ def update_json(filename, start_mileage, end_mileage):
         "filename": filename,
         "start_mileage": start_mileage,
         "end_mileage": end_mileage,
-        "number_of_slices": int((end_mileage - start_mileage) // 10),
+        "number_of_slices": None,
         "slices": [],
         "lastModified": now
     }
@@ -230,7 +224,9 @@ if __name__ == "__main__":
         file_list = [os.path.join(input_path, f"iScan-Pcd-1-{i} - preprocessed.ply") for i in range(1, 6)]
 
     json_file_path = os.path.join(output_path, "analysis_results.json")
-    json_data = initialize_json(json_file_path)
+    initialize_json(json_file_path)
+    with open(json_file_path, 'r') as json_file:
+        json_data = json.load(json_file)
 
     # Process each file
     print("Point cloud transforming...")
