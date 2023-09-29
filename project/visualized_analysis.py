@@ -129,8 +129,12 @@ def visualization(file_path, every_k_meter=10):
         # Axes setting
         ax_depth.set(xlabel="width (m)", ylabel="mileage (m)")
         ax_depth.set_title("Depth Image", fontsize=12)
-        ax_depth.set_box_aspect(np.ptp(y) / np.ptp(x))  # Axis ratio is fixed
         format_axes(ax_depth)
+
+        # Define the grid on which to interpolate the points
+        x_threshold = [x_min, x_max]
+        y_threshold = [y_min, y_max]
+        ax_depth.set_box_aspect(np.ptp(y_threshold) / np.ptp(x_threshold))  # Axis ratio is fixed
 
         # Interpolate the points onto the grid
         grid_x, grid_y = np.mgrid[x_min:x_max:1200j, y_min:y_max:1000j]
