@@ -4,6 +4,7 @@ import os
 import re
 import sys
 import time
+from datetime import datetime
 
 import numpy as np
 import open3d as o3d
@@ -49,7 +50,7 @@ def format_axes(ax):
 
 
 # Slice the point cloud, then draw a depth image and a cross-section image on each slice
-def visualization(file_path, every_k_meter=10):
+def visualization(file_path, start_mileage, end_mileage, every_k_meter=10):
     # Load the input point cloud file
     pcd = o3d.t.io.read_point_cloud(file_path)
 
@@ -76,7 +77,7 @@ def visualization(file_path, every_k_meter=10):
     for y_min, y_max in y_boundary:
         # First slice of each file may contain coordinate transformation error
         if y_min == int(start_mileage):
-            min_bound = np.array([x_min, y_min + 1e-1, z_min])
+            min_bound = np.array([x_min, y_min + 1e-2, z_min])
         else:
             min_bound = np.array([x_min, y_min, z_min])
         max_bound = np.array([x_max, y_max, z_max])
@@ -255,9 +256,19 @@ def visualization(file_path, every_k_meter=10):
         left_slope = 1 / slope
         width_of_top_surface = x_split_pos[4] - max_point[0]
 
-        text = f"- Left slope — 1 : {left_slope:.2f}\n\n- Width of top surface — {width_of_top_surface:.2f} m"
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        update_json(slice_number, y_min, y_max, left_slope, width_of_top_surface)
 
-        ax_text.text(0.2, 0.5, text, ha="left", va="center", fontsize=12)
+        text_left = (f"- start mileage : {float(y_min)}\n\n" +
+                     f"- end mileage : {float(y_max)}\n\n" +
+                     f"- Slice Name : {slice_name}")
+
+        text_right = (f"- Left Slope : 1 : {left_slope:.2f}\n\n" +
+                      f"- Width of Top Surface : {width_of_top_surface:.2f}\n\n" +
+                      f"- Last Modified : {now}")
+
+        ax_text.text(0, 0.5, text_left, ha="left", va="center", fontsize=12)
+        ax_text.text(0.5, 0.5, text_right, ha="left", va="center", fontsize=12)
         ax_text.axis("off")
 
         # Plotting complete, save the image
@@ -266,9 +277,35 @@ def visualization(file_path, every_k_meter=10):
         image_filename = os.path.join(output_path, slice_name + ".png")
         fig.savefig(image_filename, format="png", dpi=300)
 
+        plt.close(fig)
+
     end_time = time.time()
     elapsed_time = end_time - start_time
     print(f"- Elapsed time: {elapsed_time:.2f} seconds.\n")
+
+
+# Function to update the JSON structure with processing information
+def update_json(slice_number, start_mileage, end_mileage, left_slope, width_of_top_surface):
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    new_entry = {
+        "slice_number": slice_number,
+        "start_mileage": float(start_mileage),
+        "end_mileage": float(end_mileage),
+        "left_slope": left_slope,
+        "width_of_top_surface": width_of_top_surface,
+    }
+
+    # Check if an entry with the same slice number already exists
+    existing_entry = next((entry for entry in current_entry["slices"] if entry["slice_number"] == slice_number), None)
+    if existing_entry is None:
+        current_entry["slices"].append(new_entry)
+    else:
+        existing_entry.update(new_entry)
+
+    json_data["lastModified"] = now
+    current_entry["lastModified"] = now
+
+    return new_entry
 
 
 if __name__ == "__main__":
@@ -300,12 +337,12 @@ if __name__ == "__main__":
         current_file = f"iScan-Pcd-1-{i_value}.ply"
         current_entry = next((entry for entry in json_data["files"] if entry["filename"] == current_file), None)
 
-        start_mileage = current_entry["start_mileage"]
-        end_mileage = current_entry["end_mileage"]
+        current_start_mileage = current_entry["start_mileage"]
+        current_end_mileage = current_entry["end_mileage"]
 
-        visualization(input_file_path)
+        visualization(input_file_path, current_start_mileage, current_end_mileage)
 
     # Save the updated JSON data to the output directory
     json_file_path = os.path.join(output_path, "analysis_results.json")
     with open(json_file_path, 'w') as json_file:
-        json.dump(json_data, json_file, indent=2)
+        json.dump(json_data, json_file, indent=4)

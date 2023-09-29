@@ -186,7 +186,7 @@ def initialize_json(file_path):
             "files": []
         }
         with open(json_file_path, 'w') as file:
-            json.dump(template, file, indent=2)
+            json.dump(template, file, indent=4)
 
 
 # Function to update the JSON structure with processing information
@@ -255,4 +255,4 @@ if __name__ == "__main__":
 
     # Save the updated JSON data to the output directory
     with open(json_file_path, 'w') as json_file:
-        json.dump(json_data, json_file, indent=2)
+        json.dump(json_data, json_file, indent=4)
