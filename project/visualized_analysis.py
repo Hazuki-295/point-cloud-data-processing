@@ -3,12 +3,42 @@ import math
 import os
 import re
 import sys
+import time
 
 import numpy as np
 import open3d as o3d
 from matplotlib import pyplot as plt
 from matplotlib import ticker
 from scipy.interpolate import griddata
+
+
+def extract_top_surface_points(points, interval_size=0.02):
+    # Sort the data points based on x-values
+    sorted_indices = np.argsort(points[:, 0])
+    sorted_points = points[sorted_indices]
+
+    interval_start = sorted_points[0, 0]
+    interval_end = interval_start + interval_size
+
+    # Iterate over sorted points, get the max_z_point of each interval
+    top_surface_points = []
+    interval_z_values = []
+    for i in range(len(sorted_points)):
+        if sorted_points[i, 0] < interval_end:
+            interval_z_values.append(sorted_points[i, 1])
+        else:
+            if len(interval_z_values) != 0:
+                x = (interval_start + interval_end) / 2
+                z = max(interval_z_values)
+                top_surface_points.append([x, z])
+
+            # move to next interval
+            while not (sorted_points[i, 0] < interval_end):
+                interval_end += interval_size
+            interval_start = interval_end - interval_size
+            interval_z_values.clear()
+
+    return np.array(top_surface_points)
 
 
 def format_axes(ax):
@@ -37,14 +67,18 @@ def visualization(file_path, every_k_meter=10):
     print(f"- Start mileage: {start_mileage:.2f}, end mileage: {end_mileage:.2f}")
     print(f"- Split the point cloud into {len(y_boundary)} slices: {y_boundary}")
 
-    # First slice of each file may contain coordinate transformation error
-    y_boundary[0][0] += 1e-1
+    # Record elapsed time
+    start_time = time.time()
 
     # Geometric constraint to crop track region
     x_min, x_max = [-4.0, 8.0]
     z_min, z_max = [-math.inf, 1.0]
     for y_min, y_max in y_boundary:
-        min_bound = np.array([x_min, y_min, z_min])
+        # First slice of each file may contain coordinate transformation error
+        if y_min == int(start_mileage):
+            min_bound = np.array([x_min, y_min + 1e-1, z_min])
+        else:
+            min_bound = np.array([x_min, y_min, z_min])
         max_bound = np.array([x_max, y_max, z_max])
         bounding_box = o3d.t.geometry.AxisAlignedBoundingBox(min_bound, max_bound)
         pcd_slice = pcd.crop(bounding_box)
@@ -95,12 +129,8 @@ def visualization(file_path, every_k_meter=10):
         # Axes setting
         ax_depth.set(xlabel="width (m)", ylabel="mileage (m)")
         ax_depth.set_title("Depth Image", fontsize=12)
+        ax_depth.set_box_aspect(np.ptp(y) / np.ptp(x))  # Axis ratio is fixed
         format_axes(ax_depth)
-
-        # Define the grid on which to interpolate the points
-        x_threshold = [x_min, x_max]
-        y_threshold = [y_min, y_max]
-        ax_depth.set_box_aspect(np.ptp(y_threshold) / np.ptp(x_threshold))  # Axis ratio is fixed
 
         # Interpolate the points onto the grid
         grid_x, grid_y = np.mgrid[x_min:x_max:1200j, y_min:y_max:1000j]
@@ -155,15 +185,16 @@ def visualization(file_path, every_k_meter=10):
         for i in range(len(regions)):
             ax_cross.scatter(regions[i][:, 0], regions[i][:, 1], marker='^', s=0.01, c=colors[i], label=labels[i])
 
+        x_threshold = [x_min, x_max]
+        z_threshold = [-1.0, 1.0]
         point_on_top = [max_point[0], -half_sleeper_length, half_sleeper_length, x_split_pos[4]]
         colors = ["cornflowerblue", "red", "red", "limegreen"]
         for i in range(len(point_on_top)):
-            ax_cross.plot([point_on_top[i], point_on_top[i]], [0, -1.0], linestyle='--', c=colors[i])
+            ax_cross.plot([point_on_top[i], point_on_top[i]], [0, z_threshold[0]], linestyle='--', c=colors[i])
 
         remainder = np.vstack((left_remainder, right_slope, right_remainder))
         ax_cross.scatter(remainder[:, 0], remainder[:, 1], s=0.01, marker='^', c="gray")
 
-        z_threshold = [-1.0, 1.0]  # different from depth image
         ax_cross.set_xlim(x_threshold)
         ax_cross.set_ylim(z_threshold)
         ax_cross.set_box_aspect(np.ptp(z_threshold) / np.ptp(x_threshold))
@@ -179,35 +210,38 @@ def visualization(file_path, every_k_meter=10):
 
         # Plotting data
         ballast_bed_points = np.vstack((left_slope, left_shoulder, sleeper_area, right_shoulder, right_slope))
-        ax_cross_prime.scatter(ballast_bed_points[:, 0], ballast_bed_points[:, 1], s=1, marker='^', c="gray")
+        top_surface_points = extract_top_surface_points(ballast_bed_points)
+        ax_cross_prime.plot(top_surface_points[:, 0], top_surface_points[:, 1], c="limegreen", label="Actual profile",
+                            zorder=20)
 
         # Draw the ideal curve
         width_offset = 2
         height_offset = ideal_slope * width_offset
-        ax_cross_prime.plot([-half_ideal_top_width, half_ideal_top_width], [0, 0], c="red", label="Ideal section")
+        ax_cross_prime.plot([-half_ideal_top_width, half_ideal_top_width], [0, 0], c="red", label="Idealized profile",
+                            zorder=10)
         ax_cross_prime.plot([-half_ideal_top_width, -(half_ideal_top_width + width_offset)],
                             [0, -height_offset], c="red")
         ax_cross_prime.plot([half_ideal_top_width, half_ideal_top_width + width_offset],
                             [0, -height_offset], c="red")
 
         # Plot vertical lines
+        x_threshold = [-3.0, 3.0]
+        z_threshold = [-1.0, 0.5]
         point_on_top = [-half_sleeper_length, half_sleeper_length]
-        for point in point_on_top:
-            ax_cross_prime.plot([point, point], [0, -1.0], linestyle='--', c='red')
+        for i in range(len(point_on_top)):
+            ax_cross_prime.plot([point_on_top[i], point_on_top[i]], [0, z_threshold[0]], linestyle="--", c="red")
+        ax_cross_prime.plot([0, 0], [z_threshold[0], z_threshold[1]], linestyle="-.", c="black")
 
         # Left shoulder point
         ax_cross_prime.plot([max_point[0]], [max_point[1]], marker='o', c="cornflowerblue", zorder=20)
-        ax_cross_prime.plot([max_point[0], max_point[0]], [max_point[1], -1.0], linestyle='--',
+        ax_cross_prime.plot([max_point[0], max_point[0]], [max_point[1], z_threshold[0]], linestyle='--',
                             c="cornflowerblue", zorder=20)
         ax_cross_prime.annotate("Left shoulder",
                                 xy=(max_point[0] - 0.05, max_point[1] + 0.05),
                                 xytext=(-2.8, 0.25),
                                 arrowprops=dict(facecolor="cornflowerblue", headwidth=10, headlength=10))
-
         ax_cross_prime.legend(loc="lower right")
 
-        x_threshold = [-3.0, 3.0]
-        z_threshold = [-1.0, 0.5]
         ax_cross_prime.set_xlim(x_threshold)
         ax_cross_prime.set_ylim(z_threshold)
         ax_cross_prime.set_box_aspect(np.ptp(z_threshold) / np.ptp(x_threshold))
@@ -227,6 +261,10 @@ def visualization(file_path, every_k_meter=10):
 
         image_filename = os.path.join(output_path, slice_name + ".png")
         fig.savefig(image_filename, format="png", dpi=300)
+
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print(f"- Elapsed time: {elapsed_time:.2f} seconds.\n")
 
 
 if __name__ == "__main__":
