@@ -320,7 +320,7 @@ if __name__ == "__main__":
     else:
         file_list = [os.path.join(input_path, f"iScan-Pcd-1-{i} - transformed.ply") for i in range(1, 6)]
 
-    json_file_path = os.path.join(input_path, "analysis_results.json")
+    json_file_path = os.path.join("data/", "analysis_results.json")
     with open(json_file_path, 'r') as json_file:
         json_data = json.load(json_file)
 
