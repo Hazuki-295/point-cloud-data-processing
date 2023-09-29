@@ -1,4 +1,3 @@
-import bisect
 import json
 import math
 import os
@@ -26,10 +25,11 @@ def visualization(file_path, every_k_meter=10):
 
     # Slice the point cloud every k meters
     number_of_slices = int((end_mileage - start_mileage) // every_k_meter)
+    current_entry["length_of_slice"] = every_k_meter
     current_entry["number_of_slices"] = number_of_slices
 
     y_boundary = []
-    y_split_pos = [start_mileage + i * every_k_meter for i in range(number_of_slices + 1)]
+    y_split_pos = [int(start_mileage) + i * every_k_meter for i in range(number_of_slices + 1)]
     for i in range(len(y_split_pos) - 1):
         boundary = [y_split_pos[i], y_split_pos[i + 1]]
         y_boundary.append(boundary)
@@ -37,17 +37,20 @@ def visualization(file_path, every_k_meter=10):
     print(f"- Start mileage: {start_mileage:.2f}, end mileage: {end_mileage:.2f}")
     print(f"- Split the point cloud into {len(y_boundary)} slices: {y_boundary}")
 
+    # First slice of each file may contain coordinate transformation error
+    y_boundary[0][0] += 1e-1
+
     # Geometric constraint to crop track region
     x_min, x_max = [-4.0, 8.0]
     z_min, z_max = [-math.inf, 1.0]
-    for index_boundary, (y_min, y_max) in enumerate(y_boundary):
+    for y_min, y_max in y_boundary:
         min_bound = np.array([x_min, y_min, z_min])
         max_bound = np.array([x_max, y_max, z_max])
         bounding_box = o3d.t.geometry.AxisAlignedBoundingBox(min_bound, max_bound)
         pcd_slice = pcd.crop(bounding_box)
 
         # Slice number
-        slice_number = index_boundary + 1
+        slice_number = int(y_max // 10)
         slice_name = f"iScan-Pcd-1-{i_value} - slice {slice_number}"
 
         # Extract points
@@ -63,14 +66,14 @@ def visualization(file_path, every_k_meter=10):
         # Create a figure and define the grid layout
         fig = plt.figure(figsize=(16, 9))
         fig.suptitle(f"Slice Profile — iScan-Pcd-1-{i_value}", fontsize=14)
-        gs = fig.add_gridspec(8, 2)  # Define a grid for subplots
+        gs = fig.add_gridspec(4, 2)  # Define a grid for subplots
 
         # Create subplots
-        ax_point = fig.add_subplot(gs[:4, 0], projection="3d")
-        ax_cross = fig.add_subplot(gs[4:6, 0])
-        ax_cross_prime = fig.add_subplot(gs[6:, 0])
-        ax_depth = fig.add_subplot(gs[:7, 1])
-        ax_text = fig.add_subplot(gs[7, 1])
+        ax_point = fig.add_subplot(gs[:2, 0], projection="3d")
+        ax_cross = fig.add_subplot(gs[2, 0])
+        ax_cross_prime = fig.add_subplot(gs[3, 0])
+        ax_depth = fig.add_subplot(gs[:3, 1])
+        ax_text = fig.add_subplot(gs[3, 1])
 
         # 1. Point cloud (left-top, 3D subplot)
         # Axes setting
@@ -81,13 +84,12 @@ def visualization(file_path, every_k_meter=10):
 
         # Plotting data
         ax_point.scatter3D(x, y, z, s=0.01, marker=',', c=intensity, cmap="gray")
-        ax_point.plot([0.0, 0.0], [y_min, y_max], [1.0, 1.0], label="Centre line",
-                      color='r', zorder=10)
-        ax_point.plot(point_left[:, [0]], point_left[:, [1]], point_left[:, [2]], label="Left rail",
+        ax_point.plot([0.0, 0.0], [y_min, y_max], [1.0, 1.0], label="Centre line", color='r', zorder=10)
+        ax_point.plot(point_left[:, 0], point_left[:, 1], point_left[:, 2], label="Left rail",
                       marker=',', markersize=10, color="cornflowerblue", zorder=10)
-        ax_point.plot(point_right[:, [0]], point_right[:, [1]], point_right[:, [2]], label="Right rail",
+        ax_point.plot(point_right[:, 0], point_right[:, 1], point_right[:, 2], label="Right rail",
                       marker=',', markersize=10, color="limegreen", zorder=10)
-        ax_point.legend()
+        ax_point.legend(loc="upper right")
 
         # 2. Depth images (right, 2D subplot)
         # Axes setting
@@ -101,13 +103,13 @@ def visualization(file_path, every_k_meter=10):
         ax_depth.set_box_aspect(np.ptp(y_threshold) / np.ptp(x_threshold))  # Axis ratio is fixed
 
         # Interpolate the points onto the grid
-        grid_x, grid_y = np.mgrid[x_threshold[0]:x_threshold[1]:1200j, y_threshold[0]:y_threshold[1]:1000j]
+        grid_x, grid_y = np.mgrid[x_min:x_max:1200j, y_min:y_max:1000j]
         grid_z = griddata((x, y), z, (grid_x, grid_y), method="nearest")
 
         # Plot the interpolated grid
         z_threshold = [-1.0, 0.3]
         pc = ax_depth.pcolormesh(grid_x, grid_y, grid_z, vmin=z_threshold[0], vmax=z_threshold[1], cmap="RdBu_r")
-        fig.colorbar(pc, ax=ax_depth)
+        fig.colorbar(pc, ax=ax_depth, extend="max")
 
         # 3. Cross-section image (left-bottom, 2D subplot)
         ideal_top_width = 3.1  # 3.1 m
@@ -121,25 +123,23 @@ def visualization(file_path, every_k_meter=10):
         x_split_pos = [-3.0, -1.8, -half_sleeper_length, half_sleeper_length, 1.8, 3.0]
 
         left_remainder = points[x <= x_split_pos[0]]
-        left_area = points[[x_split_pos[0] < x < x_split_pos[2] for x in x]]
-        sleeper_area = points[[x_split_pos[2] <= x <= x_split_pos[3] for x in x]]
-        right_shoulder = points[[x_split_pos[3] < x < x_split_pos[4] for x in x]]
+        left_area = points[[x_split_pos[0] < x < x_split_pos[2] for x in x]]  # split later
+        sleeper_area = points[[x_split_pos[2] < x < x_split_pos[3] for x in x]]
+        right_shoulder = points[[x_split_pos[3] <= x <= x_split_pos[4] for x in x]]
         right_slope = points[[x_split_pos[4] < x < x_split_pos[5] for x in x]]
         right_remainder = points[x_split_pos[5] <= x]
 
-        # Linear fitting
-        left_slope = left_area[left_area[:, 0] <= x_split_pos[1]]  # 1
+        # Linear fitting, compute the left shoulder point
+        left_slope = left_area[left_area[:, 0] < x_split_pos[1]]
         coefficients = np.polyfit(left_slope[:, 0], left_slope[:, 1], 1)
         slope, y_intercept = coefficients[0], coefficients[1]
 
-        # Compute the left shoulder point first
         max_z_index = np.argmax(left_area[:, 1])
         max_point = left_area[max_z_index]
-        x_split_pos[1] = max_point[0]
+        x_split_pos[1] = max_point[0]  # update split position
 
-        # Then use interval endpoints to separate regions
-        left_slope = left_area[left_area[:, 0] <= x_split_pos[1]]  # 2
-        left_shoulder = left_area[left_area[:, 0] > x_split_pos[1]]
+        left_slope = left_area[left_area[:, 0] < x_split_pos[1]]
+        left_shoulder = left_area[left_area[:, 0] >= x_split_pos[1]]
 
         # 3.1 Cross-section image (left-bottom 1)
         # Axes setting
@@ -149,9 +149,9 @@ def visualization(file_path, every_k_meter=10):
         format_axes(ax_cross)
 
         # Plotting data
-        regions = [sleeper_area, left_slope, left_shoulder, right_shoulder]
-        labels = ["Sleeper region", "Left slope", "Left shoulder", "Right shoulder"]
-        colors = ["red", "cornflowerblue", "orange", "limegreen"]
+        regions = [left_slope, left_shoulder, sleeper_area, right_shoulder]
+        labels = ["Left slope", "Left shoulder", "Sleeper region", "Right shoulder"]
+        colors = ["cornflowerblue", "orange", "red", "limegreen"]
         for i in range(len(regions)):
             ax_cross.scatter(regions[i][:, 0], regions[i][:, 1], marker='^', s=0.01, c=colors[i], label=labels[i])
 
@@ -169,7 +169,7 @@ def visualization(file_path, every_k_meter=10):
         ax_cross.set_box_aspect(np.ptp(z_threshold) / np.ptp(x_threshold))
         ax_cross.set_yticks([-1.0, 0.0, 1.0])
 
-        ax_cross.legend(markerscale=50)
+        ax_cross.legend(loc="upper right", markerscale=50)
 
         # 3.2 Cross-section image (left-bottom 2)
         # Axes setting
@@ -179,57 +179,47 @@ def visualization(file_path, every_k_meter=10):
 
         # Plotting data
         ballast_bed_points = np.vstack((left_slope, left_shoulder, sleeper_area, right_shoulder, right_slope))
+        ax_cross_prime.scatter(ballast_bed_points[:, 0], ballast_bed_points[:, 1], s=1, marker='^', c="gray")
 
-        # Plot ideal section and actual section
-        ax_cross_prime.plot([-half_ideal_top_width, half_ideal_top_width], [0, 0], c="red", label="Ideal section")
-        ax_cross_prime.scatter(ballast_bed_points[:, 0], ballast_bed_points[:, 1], s=0.01, marker='^', c="gray")
-
+        # Draw the ideal curve
         width_offset = 2
         height_offset = ideal_slope * width_offset
-        ax_cross_prime.plot([-half_ideal_top_width, -(half_ideal_top_width + width_offset)],  # ideal left slope
+        ax_cross_prime.plot([-half_ideal_top_width, half_ideal_top_width], [0, 0], c="red", label="Ideal section")
+        ax_cross_prime.plot([-half_ideal_top_width, -(half_ideal_top_width + width_offset)],
                             [0, -height_offset], c="red")
-        ax_cross_prime.plot([half_ideal_top_width, half_ideal_top_width + width_offset],  # ideal right slope
+        ax_cross_prime.plot([half_ideal_top_width, half_ideal_top_width + width_offset],
                             [0, -height_offset], c="red")
 
         # Plot vertical lines
         point_on_top = [-half_sleeper_length, half_sleeper_length]
         for point in point_on_top:
-            ax_cross_prime.plot([point, point], [0, -1.0], linestyle='--', c='r')
-        ax_cross_prime.plot([0, 0], [0, -1.0], linestyle='--', c='k')
+            ax_cross_prime.plot([point, point], [0, -1.0], linestyle='--', c='red')
 
         # Left shoulder point
-        index_point = bisect.bisect_left(ballast_bed_points[:, 0], max_point[0])
-        max_point_prime = ballast_bed_points[index_point]
-
-        ax_cross_prime.plot([max_point_prime[0]], [max_point_prime[1]], marker='o', c="cornflowerblue", zorder=20)
-        ax_cross_prime.plot([max_point_prime[0], max_point_prime[0]], [max_point_prime[1], -1.0], linestyle='--',
+        ax_cross_prime.plot([max_point[0]], [max_point[1]], marker='o', c="cornflowerblue", zorder=20)
+        ax_cross_prime.plot([max_point[0], max_point[0]], [max_point[1], -1.0], linestyle='--',
                             c="cornflowerblue", zorder=20)
         ax_cross_prime.annotate("Left shoulder",
-                                xy=(max_point_prime[0] - 0.05, max_point_prime[1] + 0.05),
+                                xy=(max_point[0] - 0.05, max_point[1] + 0.05),
                                 xytext=(-2.8, 0.25),
                                 arrowprops=dict(facecolor="cornflowerblue", headwidth=10, headlength=10))
 
         ax_cross_prime.legend(loc="lower right")
 
-        x_threshold_prime = [-3.0, 3.0]
-        z_threshold_prime = [-1.0, 0.5]
-        ax_cross_prime.set_xlim(x_threshold_prime)
-        ax_cross_prime.set_ylim(z_threshold_prime)
-        ax_cross_prime.set_box_aspect(np.ptp(z_threshold_prime) / np.ptp(x_threshold_prime))
+        x_threshold = [-3.0, 3.0]
+        z_threshold = [-1.0, 0.5]
+        ax_cross_prime.set_xlim(x_threshold)
+        ax_cross_prime.set_ylim(z_threshold)
+        ax_cross_prime.set_box_aspect(np.ptp(z_threshold) / np.ptp(x_threshold))
         ax_cross_prime.set_yticks([-1.0, -0.5, 0.0, 0.5])
 
         # 4. Statistic data
-        left_slope_value = 1 / slope
-        left_shoulder_width = (-max_point[0] - half_sleeper_length) * 1000  # mm
+        left_slope = 1 / slope
+        width_of_top_surface = x_split_pos[4] - max_point[0]
 
-        text = f"Left slope — 1 : {left_slope_value:.2f}"
-        text = text + "        " + f"Left shoulder width — {left_shoulder_width:.0f} mm"
+        text = f"- Left slope — 1 : {left_slope:.2f}\n\n- Width of top surface — {width_of_top_surface:.2f} m"
 
-        ax_text.text(0, 0, text, ha="left", va="center", fontsize=12)
-
-        ax_text.set_xlim(0, 1)
-        ax_text.set_ylim(0, 1)
-
+        ax_text.text(0.2, 0.5, text, ha="left", va="center", fontsize=12)
         ax_text.axis("off")
 
         # Plotting complete, save the image

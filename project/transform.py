@@ -28,7 +28,7 @@ def curve_fitting(point, point_num=None):
     return curve_point
 
 
-def transform(file_path, start_mileage):
+def transform(file_path, start_mileage, every_k_meter=10):
     # Load the input point cloud file
     if i_value > 1:
         previous_remainder_filepath = os.path.join(input_path, f"iScan-Pcd-1-{i_value - 1} - remainder.ply")
@@ -164,7 +164,7 @@ def transform(file_path, start_mileage):
     end_mileage = start_mileage + cumulate_y[-1]
 
     # Crop the point cloud based on y coordinate
-    mask = np.where(y >= (end_mileage // 10 * 10), True, False)
+    mask = np.where(y >= (end_mileage // every_k_meter * every_k_meter), True, False)
     remainder_pcd = pcd.select_by_mask(mask)
     remainder_filename = os.path.join(input_path, base_name.replace("preprocessed", "remainder") + extension)
     o3d.t.io.write_point_cloud(remainder_filename, remainder_pcd)
@@ -196,6 +196,7 @@ def update_json(filename, start_mileage, end_mileage):
         "filename": filename,
         "start_mileage": start_mileage,
         "end_mileage": end_mileage,
+        "length_of_slice": None,
         "number_of_slices": None,
         "slices": [],
         "lastModified": now
