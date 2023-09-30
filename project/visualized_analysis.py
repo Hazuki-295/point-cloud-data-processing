@@ -343,6 +343,5 @@ if __name__ == "__main__":
         visualization(input_file_path, current_start_mileage, current_end_mileage)
 
     # Save the updated JSON data to the output directory
-    json_file_path = os.path.join(output_path, "analysis_results.json")
     with open(json_file_path, 'w') as json_file:
         json.dump(json_data, json_file, indent=4)

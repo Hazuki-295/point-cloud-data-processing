@@ -3,11 +3,13 @@ import os
 import re
 import sys
 import time
+import traceback
 from collections import Counter
 from datetime import datetime
 
 import numpy as np
 import open3d as o3d
+from matplotlib import pyplot as plt
 from scipy import interpolate
 from scipy.spatial import cKDTree
 
@@ -28,7 +30,23 @@ def curve_fitting(point, point_num=None):
     return curve_point
 
 
-def transform(file_path, start_mileage, every_k_meter=10):
+# If transform raise an exception, visualize the DBSCAN clustering results
+def dbscan_debug(pcd, cluster, sorted_items):
+    fig, ax = plt.subplots(subplot_kw={"projection": "3d"}, figsize=(8, 8))
+    ax.set_title("DBSCAN Clustering results")
+
+    coordinates = pcd.point.positions.numpy()
+    for i, item in enumerate(sorted_items[:5]):
+        val, count = item
+        point_cluster = coordinates[cluster == i + 1]
+        x, y, z = point_cluster[:, 0], point_cluster[:, 1], point_cluster[:, 2]
+        ax.scatter3D(x, y, z, label=f"cluster {i + 1}: {count}")
+    ax.legend()
+
+    plt.show()
+
+
+def transform(file_path, start_mileage, every_k_meter=10, debug=False):
     # Load the input point cloud file
     if i_value > 1:
         previous_remainder_filepath = os.path.join(input_path, f"iScan-Pcd-1-{i_value - 1} - remainder.ply")
@@ -80,13 +98,24 @@ def transform(file_path, start_mileage, every_k_meter=10):
 
     # Part 2. Curve fitting
     # Step 1. Fit two curves on both left and right rails
-    left_rail = pcd.select_by_mask(cluster == 1)
-    point_left = left_rail.point.positions.numpy()
-    curve_point_left = curve_fitting(point_left)
+    try:
+        left_rail = pcd.select_by_mask(cluster == 1)
+        point_left = left_rail.point.positions.numpy()
+        curve_point_left = curve_fitting(point_left)
 
-    right_rail = pcd.select_by_mask(cluster == 2)
-    point_right = right_rail.point.positions.numpy()
-    curve_point_right = curve_fitting(point_right)
+        right_rail = pcd.select_by_mask(cluster == 2)
+        point_right = right_rail.point.positions.numpy()
+        curve_point_right = curve_fitting(point_right)
+    except Exception as e:
+        exception_name = type(e).__name__
+        print(f"- Error: Caught an exception, {exception_name}: {e}")
+        traceback.print_exc()
+
+        dbscan_debug(pcd, cluster, sorted_items)
+        exit(1)
+    else:
+        if debug:
+            dbscan_debug(pcd, cluster, sorted_items)
 
     # Step 2. Calculate the centre line, then fit a curve on it
     # Build a kd-tree from the left curve points
