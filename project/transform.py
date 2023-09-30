@@ -15,6 +15,9 @@ from scipy.spatial import cKDTree
 
 
 def curve_fitting(point, point_num=None):
+    # Remove duplicate points
+    point = np.unique(point, axis=0)
+
     # Input should be points that stored in a (n, 3) ndarray
     if point_num is None:
         point_num = point.shape[0]
