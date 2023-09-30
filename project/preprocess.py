@@ -15,15 +15,15 @@ def preprocess(file_path):
     filtered_pcd, mask = down_sampled_pcd.remove_statistical_outliers(nb_neighbors=20, std_ratio=2.0)
 
     # Save the preprocessed point cloud to an output file
-    preprocessed_filename = os.path.join(output_path, base_name + " - preprocessed" + extension)
+    preprocessed_filename = os.path.join(preprocessed_path, base_name + " - preprocessed" + extension)
     o3d.t.io.write_point_cloud(preprocessed_filename, filtered_pcd)
 
 
 if __name__ == "__main__":
     # File directory
     input_path = "data/input/"
-    output_path = "data/preprocessed/"
-    os.makedirs(output_path, exist_ok=True)
+    preprocessed_path = "data/preprocessed/"
+    os.makedirs(preprocessed_path, exist_ok=True)
 
     # List of file paths to process
     if len(sys.argv) > 1:

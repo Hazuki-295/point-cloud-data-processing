@@ -33,26 +33,36 @@ def curve_fitting(point, point_num=None):
     return curve_point
 
 
-# If transform raise an exception, visualize the DBSCAN clustering results
-def dbscan_debug(pcd, cluster, sorted_items):
-    fig, ax = plt.subplots(subplot_kw={"projection": "3d"}, figsize=(8, 8))
-    ax.set_title("DBSCAN Clustering results")
-
+# If transform raise an exception, check the DBSCAN clustering results
+def dbscan_debug(pcd, cluster, sorted_items, debug=False):
     coordinates = pcd.point.positions.numpy()
+
+    fig, ax = plt.subplots(subplot_kw={"projection": "3d"}, figsize=(8, 8))
+    ax.set(xlabel="x axis", ylabel="y axis", zlabel="z axis")
+    ax.set_title(f"DBSCAN clustering results — iScan-Pcd-1-{i_value}")
+    ax.set_box_aspect(np.ptp(coordinates, axis=0))
+
     for i, item in enumerate(sorted_items[:5]):
         val, count = item
         point_cluster = coordinates[cluster == i + 1]
         x, y, z = point_cluster[:, 0], point_cluster[:, 1], point_cluster[:, 2]
         ax.scatter3D(x, y, z, label=f"cluster {i + 1}: {count}")
-    ax.legend()
 
-    plt.show()
+    ax.legend(loc="upper right")
+
+    if debug:
+        plt.show()
+    else:
+        image_filename = os.path.join(dbscan_image_path, f"iScan-Pcd-1-{i_value}.png")
+        fig.savefig(image_filename, format="png", dpi=300)
+
+    plt.close(fig)
 
 
-def transform(file_path, start_mileage, every_k_meter=10, debug=False):
+def transform(file_path, previous_end_mileage, every_k_meter=10, debug=False):
     # Load the input point cloud file
     if i_value > 1:
-        previous_remainder_filepath = os.path.join(input_path, f"iScan-Pcd-1-{i_value - 1} - remainder.ply")
+        previous_remainder_filepath = os.path.join(preprocessed_path, f"iScan-Pcd-1-{i_value - 1} - remainder.ply")
         remainder_pcd = o3d.t.io.read_point_cloud(previous_remainder_filepath)
         current_pcd = o3d.t.io.read_point_cloud(file_path)
 
@@ -99,6 +109,9 @@ def transform(file_path, start_mileage, every_k_meter=10, debug=False):
             cluster[index_of_mask[i]] = rank.index(val) + 1
     pcd.point.cluster = np.reshape(cluster, (len(cluster), 1))
 
+    # Save the DBSCAN clustering results for debug
+    dbscan_debug(pcd, cluster, sorted_items, debug)
+
     # Part 2. Curve fitting
     # Step 1. Fit two curves on both left and right rails
     try:
@@ -113,12 +126,8 @@ def transform(file_path, start_mileage, every_k_meter=10, debug=False):
         exception_name = type(e).__name__
         print(f"- Error: Caught an exception, {exception_name}: {e}")
         traceback.print_exc()
-
-        dbscan_debug(pcd, cluster, sorted_items)
+        dbscan_debug(pcd, cluster, sorted_items, debug=True)
         exit(1)
-    else:
-        if debug:
-            dbscan_debug(pcd, cluster, sorted_items)
 
     # Step 2. Calculate the centre line, then fit a curve on it
     # Build a kd-tree from the left curve points
@@ -134,7 +143,7 @@ def transform(file_path, start_mileage, every_k_meter=10, debug=False):
     point_centre = (nearest_point + curve_point_right) / 2
 
     # Fit a curve on centre line
-    curve_point_centre = curve_fitting(point_centre, point_centre.shape[0] * 2)  # more accurate
+    curve_point_centre = curve_fitting(point_centre)
 
     # Step 3. Store three fitted curves to a separate file (debug)
     point = np.vstack((curve_point_left, curve_point_right, curve_point_centre))
@@ -148,7 +157,7 @@ def transform(file_path, start_mileage, every_k_meter=10, debug=False):
     pcd_curve.point.colors = colors
 
     # Save the fitted curves for comparison
-    curve_filename = os.path.join(input_path, base_name.replace("preprocessed", "curve") + extension)
+    curve_filename = os.path.join(preprocessed_path, base_name.replace("preprocessed", "curve") + extension)
     o3d.t.io.write_point_cloud(curve_filename, pcd_curve)
 
     # Part 3. RANSAC
@@ -185,25 +194,29 @@ def transform(file_path, start_mileage, every_k_meter=10, debug=False):
     sign_x = np.where(dot_product > 0, 1, -1)
 
     # Coordinate calculation
+    start_mileage = previous_end_mileage // every_k_meter * every_k_meter
+
     x = sign_x * magnitude_PQ * sin_theta
     y = start_mileage + cumulate_y[nearest_index]
     z = (np.dot(coordinates, normal_z) + d) / magnitude_z
+
+    end_mileage = start_mileage + cumulate_y[-1]
+
+    update_json(f"iScan-Pcd-1-{i_value}.ply", start_mileage, end_mileage)
 
     end_time = time.time()
     elapsed_time = end_time - start_time
     print(f"- Elapsed time: {elapsed_time:.2f} seconds.\n")
 
-    end_mileage = start_mileage + cumulate_y[-1]
-
     # Crop the point cloud based on y coordinate
     mask = np.where(y >= (end_mileage // every_k_meter * every_k_meter), True, False)
     remainder_pcd = pcd.select_by_mask(mask)
-    remainder_filename = os.path.join(input_path, base_name.replace("preprocessed", "remainder") + extension)
+    remainder_filename = os.path.join(preprocessed_path, base_name.replace("preprocessed", "remainder") + extension)
     o3d.t.io.write_point_cloud(remainder_filename, remainder_pcd)
 
     pcd.point.positions = np.column_stack((x, y, z))
 
-    transformed_filename = os.path.join(output_path, base_name.replace("preprocessed", "transformed") + extension)
+    transformed_filename = os.path.join(transformed_path, base_name.replace("preprocessed", "transformed") + extension)
     o3d.t.io.write_point_cloud(transformed_filename, pcd)
 
     return end_mileage
@@ -246,15 +259,18 @@ def update_json(filename, start_mileage, end_mileage):
 
 if __name__ == "__main__":
     # File directory
-    input_path = "data/preprocessed/"
-    output_path = "data/transformed/"
-    os.makedirs(output_path, exist_ok=True)
+    preprocessed_path = "data/preprocessed/"
+    transformed_path = "data/transformed/"
+    os.makedirs(transformed_path, exist_ok=True)
+
+    dbscan_image_path = "data/transformed/dbscan_img"
+    os.makedirs(dbscan_image_path, exist_ok=True)
 
     # List of file paths to process
     if len(sys.argv) > 1:
         file_list = sys.argv[1:]
     else:
-        file_list = [os.path.join(input_path, f"iScan-Pcd-1-{i} - preprocessed.ply") for i in range(1, 6)]
+        file_list = [os.path.join(preprocessed_path, f"iScan-Pcd-1-{i} - preprocessed.ply") for i in range(1, 6)]
 
     json_file_path = os.path.join("data/", "analysis_results.json")
     initialize_json(json_file_path)
@@ -281,9 +297,7 @@ if __name__ == "__main__":
         else:
             previous_end_mileage = 0.0  # First file
 
-        current_start_mileage = previous_end_mileage // 10 * 10
-        current_end_mileage = transform(input_file_path, current_start_mileage)
-        update_json(f"iScan-Pcd-1-{i_value}.ply", current_start_mileage, current_end_mileage)
+        transform(input_file_path, previous_end_mileage)
 
     # Save the updated JSON data to the output directory
     with open(json_file_path, 'w') as json_file:

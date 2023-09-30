@@ -164,17 +164,16 @@ def visualization(file_path, start_mileage, end_mileage, every_k_meter=10):
         right_slope = points[[x_split_pos[4] < x < x_split_pos[5] for x in x]]
         right_remainder = points[x_split_pos[5] <= x]
 
-        # Linear fitting, compute the left shoulder point
-        left_slope = left_area[left_area[:, 0] < x_split_pos[1]]
-        coefficients = np.polyfit(left_slope[:, 0], left_slope[:, 1], 1)
-        slope, y_intercept = coefficients[0], coefficients[1]
-
-        max_z_index = np.argmax(left_area[:, 1])
-        max_point = left_area[max_z_index]
+        shoulder_points = points[[-2.0 < x < -1.5 for x in x]]
+        max_z_index = np.argmax(shoulder_points[:, 1])
+        max_point = shoulder_points[max_z_index]
         x_split_pos[1] = max_point[0]  # update split position
 
+        # Linear fitting, compute the left shoulder point
         left_slope = left_area[left_area[:, 0] < x_split_pos[1]]
         left_shoulder = left_area[left_area[:, 0] >= x_split_pos[1]]
+        coefficients = np.polyfit(left_slope[:, 0], left_slope[:, 1], 1)
+        slope, y_intercept = coefficients[0], coefficients[1]
 
         # 3.1 Cross-section image (left-bottom 1)
         # Axes setting
@@ -310,7 +309,7 @@ def update_json(slice_number, start_mileage, end_mileage, left_slope, width_of_t
 
 if __name__ == "__main__":
     # File directory
-    input_path = "data/transformed/"
+    transformed_path = "data/transformed/"
     output_path = "data/output/"
     os.makedirs(output_path, exist_ok=True)
 
@@ -318,7 +317,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         file_list = sys.argv[1:]
     else:
-        file_list = [os.path.join(input_path, f"iScan-Pcd-1-{i} - transformed.ply") for i in range(1, 6)]
+        file_list = [os.path.join(transformed_path, f"iScan-Pcd-1-{i} - transformed.ply") for i in range(1, 6)]
 
     json_file_path = os.path.join("data/", "analysis_results.json")
     with open(json_file_path, 'r') as json_file:
