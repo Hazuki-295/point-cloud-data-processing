@@ -297,7 +297,7 @@ if __name__ == "__main__":
         file_list = [os.path.join(preprocessed_path, f"iScan-Pcd-1-{i} - preprocessed.ply") for i in range(1, 6)]
 
     # Files that should be skipped
-    i_exclude = list(range(11, 17)) + list(range(28, 33)) + list(range(38, 49))
+    i_exclude = list(range(11, 17)) + list(range(28, 33))
     file_list_exclude = [os.path.join(preprocessed_path, f"iScan-Pcd-1-{i} - preprocessed.ply") for i in i_exclude]
 
     file_list_all = [os.path.join(preprocessed_path, f"iScan-Pcd-1-{i} - preprocessed.ply") for i in range(1, 49)]
