@@ -55,8 +55,6 @@ def visualization(file_path, every_k_meter=10):
     pcd = o3d.t.io.read_point_cloud(file_path)
 
     # Retrieve data saved in the json file
-    current_file = f"iScan-Pcd-1-{i_value}.ply"
-    current_entry = next((entry for entry in json_data["files"] if entry["filename"] == current_file), None)
     start_mileage = current_entry["start_mileage"]
     end_mileage = current_entry["end_mileage"]
 
@@ -286,7 +284,7 @@ def visualization(file_path, every_k_meter=10):
 
     end_time = time.time()
     elapsed_time = end_time - start_time
-    print(f"- Elapsed time: {elapsed_time:.2f} seconds.\n")
+    print(f"- Elapsed time: {elapsed_time:.2f} seconds.")
 
 
 # Function to update the JSON structure with processing information
@@ -339,7 +337,11 @@ if __name__ == "__main__":
         i_value = int(re.search(pattern, input_file_path).group(1))
         base_name, extension = os.path.splitext(os.path.basename(input_file_path))
 
+        current_file = f"iScan-Pcd-1-{i_value}.ply"
+        current_entry = next((entry for entry in json_data["files"] if entry["filename"] == current_file), None)
+
         visualization(input_file_path)
+        print()
 
     # Save the updated JSON data to the output directory
     with open(json_file_path, 'w') as json_file:

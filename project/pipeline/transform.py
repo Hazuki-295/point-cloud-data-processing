@@ -59,9 +59,16 @@ def dbscan_debug(pcd, cluster, sorted_items, debug=False):
 
 
 def transform(file_path, every_k_meter=10, debug=False):
+    # Whether to skip transformation
+    if input_file_path in file_list_exclude:
+        excluded_file = True
+        print(f"- Current input file path has been excluded, skip transformation.")
+    else:
+        excluded_file = False
+
     # Check if there is an entry corresponding to the previous file
-    if i_value > 1:
-        previous_file = filtered_file_list_all[filtered_file_list_all.index(file_path) - 1]
+    if i_value > 1 and not excluded_file:
+        previous_file = file_list_all_filtered[file_list_all_filtered.index(file_path) - 1]
         previous_i_value = int(re.search(pattern, previous_file).group(1))
         previous_filename = f"iScan-Pcd-1-{previous_i_value}.ply"
         previous_entry = next((entry for entry in json_data["files"] if entry["filename"] == previous_filename), None)
@@ -85,7 +92,7 @@ def transform(file_path, every_k_meter=10, debug=False):
         else:
             pcd = o3d.t.io.read_point_cloud(file_path)
     else:
-        previous_end_mileage = 0.0  # First file
+        previous_end_mileage = 0.0  # First file, or the file has been excluded
         pcd = o3d.t.io.read_point_cloud(file_path)
 
     # Part 1. DBSCAN clustering
@@ -126,6 +133,10 @@ def transform(file_path, every_k_meter=10, debug=False):
 
     # Save the DBSCAN clustering results for debug
     dbscan_debug(pcd, cluster, sorted_items, debug)
+
+    # Skip transformation
+    if excluded_file:
+        return
 
     # Part 2. Curve fitting
     # Step 1. Fit two curves on both left and right rails
@@ -221,7 +232,7 @@ def transform(file_path, every_k_meter=10, debug=False):
 
     end_time = time.time()
     elapsed_time = end_time - start_time
-    print(f"- Elapsed time: {elapsed_time:.2f} seconds.\n")
+    print(f"- Elapsed time: {elapsed_time:.2f} seconds.")
 
     # Crop the point cloud based on y coordinate
     mask = np.where(y >= (end_mileage // every_k_meter * every_k_meter), True, False)
@@ -233,8 +244,6 @@ def transform(file_path, every_k_meter=10, debug=False):
 
     transformed_filename = os.path.join(transformed_path, base_name.replace("preprocessed", "transformed") + extension)
     o3d.t.io.write_point_cloud(transformed_filename, pcd)
-
-    return end_mileage
 
 
 # If JSON file doesn't exist, create an empty structure
@@ -288,13 +297,14 @@ if __name__ == "__main__":
         file_list = [os.path.join(preprocessed_path, f"iScan-Pcd-1-{i} - preprocessed.ply") for i in range(1, 6)]
 
     # Files that should be skipped
-    file_list_all = [os.path.join(preprocessed_path, f"iScan-Pcd-1-{i} - preprocessed.ply") for i in range(1, 49)]
-    file_list_exclude = [os.path.join(preprocessed_path, f"iScan-Pcd-1-{i} - preprocessed.ply") for i in range(11, 17)]
+    i_exclude = list(range(11, 17)) + list(range(28, 33))
+    file_list_exclude = [os.path.join(preprocessed_path, f"iScan-Pcd-1-{i} - preprocessed.ply") for i in i_exclude]
 
-    filtered_file_list_all = []
+    file_list_all = [os.path.join(preprocessed_path, f"iScan-Pcd-1-{i} - preprocessed.ply") for i in range(1, 49)]
+    file_list_all_filtered = []
     for item in file_list_all:
         if item not in file_list_exclude:
-            filtered_file_list_all.append(item)
+            file_list_all_filtered.append(item)
 
     json_file_path = os.path.join("data/", "analysis_results.json")
     initialize_json(json_file_path)
@@ -307,16 +317,16 @@ if __name__ == "__main__":
         # Prompt current file path
         print(f"Input [{index + 1}]: {input_file_path}")
 
-        # Skip the file
-        if input_file_path in file_list_exclude:
-            print(f"- Current input file path has been excluded, skipped.\n")
-            continue
-
         pattern = r"iScan-Pcd-1-(\d+)"
         i_value = int(re.search(pattern, input_file_path).group(1))
         base_name, extension = os.path.splitext(os.path.basename(input_file_path))
 
-        transform(input_file_path)
+        try:
+            transform(input_file_path)
+            print()
+        except KeyboardInterrupt:
+            print("KeyboardInterrupt: Program interrupted by user.")
+            break
 
     # Save the updated JSON data to the output directory
     with open(json_file_path, 'w') as json_file:
