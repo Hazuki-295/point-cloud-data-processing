@@ -40,7 +40,6 @@ def dbscan_debug(pcd, cluster, sorted_items, debug=False):
     fig, ax = plt.subplots(subplot_kw={"projection": "3d"}, figsize=(8, 8))
     ax.set(xlabel="x axis", ylabel="y axis", zlabel="z axis")
     ax.set_title(f"DBSCAN clustering results — iScan-Pcd-1-{i_value}")
-    ax.set_box_aspect(np.ptp(coordinates, axis=0))
 
     for i, item in enumerate(sorted_items[:5]):
         val, count = item
@@ -59,18 +58,34 @@ def dbscan_debug(pcd, cluster, sorted_items, debug=False):
     plt.close(fig)
 
 
-def transform(file_path, previous_end_mileage, every_k_meter=10, debug=False):
-    # Load the input point cloud file
+def transform(file_path, every_k_meter=10, debug=False):
+    # Check if there is an entry corresponding to the previous file
     if i_value > 1:
-        previous_remainder_filepath = os.path.join(preprocessed_path, f"iScan-Pcd-1-{i_value - 1} - remainder.ply")
-        remainder_pcd = o3d.t.io.read_point_cloud(previous_remainder_filepath)
-        current_pcd = o3d.t.io.read_point_cloud(file_path)
+        previous_file = filtered_file_list_all[filtered_file_list_all.index(file_path) - 1]
+        previous_i_value = int(re.search(pattern, previous_file).group(1))
+        previous_filename = f"iScan-Pcd-1-{previous_i_value}.ply"
+        previous_entry = next((entry for entry in json_data["files"] if entry["filename"] == previous_filename), None)
+        if previous_entry is None:
+            print(f"Error: Entry for previous file {previous_file} not found in JSON data.")
+            exit(1)
+        previous_end_mileage = previous_entry["end_mileage"]
 
-        pcd = o3d.t.geometry.PointCloud()
-        pcd.point.positions = np.vstack((remainder_pcd.point.positions.numpy(), current_pcd.point.positions.numpy()))
-        pcd.point.intensity = np.vstack((remainder_pcd.point.intensity.numpy(), current_pcd.point.intensity.numpy()))
+        if previous_file == file_list_all[file_list_all.index(file_path) - 1]:
+            previous_remainder_filename = f"iScan-Pcd-1-{previous_i_value} - remainder.ply"
+            previous_remainder_filepath = os.path.join(preprocessed_path, previous_remainder_filename)
+            remainder_pcd = o3d.t.io.read_point_cloud(previous_remainder_filepath)
+            current_pcd = o3d.t.io.read_point_cloud(file_path)
 
+            positions = np.vstack((remainder_pcd.point.positions.numpy(), current_pcd.point.positions.numpy()))
+            intensity = np.vstack((remainder_pcd.point.intensity.numpy(), current_pcd.point.intensity.numpy()))
+
+            pcd = o3d.t.geometry.PointCloud()
+            pcd.point.positions = positions
+            pcd.point.intensity = intensity
+        else:
+            pcd = o3d.t.io.read_point_cloud(file_path)
     else:
+        previous_end_mileage = 0.0  # First file
         pcd = o3d.t.io.read_point_cloud(file_path)
 
     # Part 1. DBSCAN clustering
@@ -272,6 +287,15 @@ if __name__ == "__main__":
     else:
         file_list = [os.path.join(preprocessed_path, f"iScan-Pcd-1-{i} - preprocessed.ply") for i in range(1, 6)]
 
+    # Files that should be skipped
+    file_list_all = [os.path.join(preprocessed_path, f"iScan-Pcd-1-{i} - preprocessed.ply") for i in range(1, 49)]
+    file_list_exclude = [os.path.join(preprocessed_path, f"iScan-Pcd-1-{i} - preprocessed.ply") for i in range(11, 17)]
+
+    filtered_file_list_all = []
+    for item in file_list_all:
+        if item not in file_list_exclude:
+            filtered_file_list_all.append(item)
+
     json_file_path = os.path.join("data/", "analysis_results.json")
     initialize_json(json_file_path)
     with open(json_file_path, 'r') as json_file:
@@ -281,23 +305,18 @@ if __name__ == "__main__":
     print("Point cloud transforming...")
     for index, input_file_path in enumerate(file_list):
         # Prompt current file path
-        base_name, extension = os.path.splitext(os.path.basename(input_file_path))
         print(f"Input [{index + 1}]: {input_file_path}")
 
-        # Check if there is an entry corresponding to the previous file
+        # Skip the file
+        if input_file_path in file_list_exclude:
+            print(f"- Current input file path has been excluded, skipped.\n")
+            continue
+
         pattern = r"iScan-Pcd-1-(\d+)"
         i_value = int(re.search(pattern, input_file_path).group(1))
-        if i_value > 1:
-            previous_file = f"iScan-Pcd-1-{i_value - 1}.ply"
-            previous_entry = next((entry for entry in json_data["files"] if entry["filename"] == previous_file), None)
-            if previous_entry is None:
-                print(f"Error: Entry for previous file {previous_file} not found in JSON data.")
-                exit(1)
-            previous_end_mileage = previous_entry["end_mileage"]
-        else:
-            previous_end_mileage = 0.0  # First file
+        base_name, extension = os.path.splitext(os.path.basename(input_file_path))
 
-        transform(input_file_path, previous_end_mileage)
+        transform(input_file_path)
 
     # Save the updated JSON data to the output directory
     with open(json_file_path, 'w') as json_file:

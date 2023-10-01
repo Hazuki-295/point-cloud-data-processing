@@ -50,9 +50,15 @@ def format_axes(ax):
 
 
 # Slice the point cloud, then draw a depth image and a cross-section image on each slice
-def visualization(file_path, start_mileage, end_mileage, every_k_meter=10):
+def visualization(file_path, every_k_meter=10):
     # Load the input point cloud file
     pcd = o3d.t.io.read_point_cloud(file_path)
+
+    # Retrieve data saved in the json file
+    current_file = f"iScan-Pcd-1-{i_value}.ply"
+    current_entry = next((entry for entry in json_data["files"] if entry["filename"] == current_file), None)
+    start_mileage = current_entry["start_mileage"]
+    end_mileage = current_entry["end_mileage"]
 
     # Slice the point cloud every k meters
     number_of_slices = int((end_mileage - start_mileage) // every_k_meter)
@@ -327,19 +333,13 @@ if __name__ == "__main__":
     print("Analysis results visualization...")
     for index, input_file_path in enumerate(file_list):
         # Prompt current file path
-        base_name, extension = os.path.splitext(os.path.basename(input_file_path))
         print(f"Input [{index + 1}]: {input_file_path}")
 
         pattern = r"iScan-Pcd-1-(\d+)"
         i_value = int(re.search(pattern, input_file_path).group(1))
+        base_name, extension = os.path.splitext(os.path.basename(input_file_path))
 
-        current_file = f"iScan-Pcd-1-{i_value}.ply"
-        current_entry = next((entry for entry in json_data["files"] if entry["filename"] == current_file), None)
-
-        current_start_mileage = current_entry["start_mileage"]
-        current_end_mileage = current_entry["end_mileage"]
-
-        visualization(input_file_path, current_start_mileage, current_end_mileage)
+        visualization(input_file_path)
 
     # Save the updated JSON data to the output directory
     with open(json_file_path, 'w') as json_file:

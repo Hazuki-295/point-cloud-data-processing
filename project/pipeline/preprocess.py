@@ -36,10 +36,10 @@ if __name__ == "__main__":
     print("Point cloud preprocessing...")
     for index, input_file_path in enumerate(file_list):
         # Prompt current file path
-        base_name, extension = os.path.splitext(os.path.basename(input_file_path))
         print(f"Input [{index + 1}]: {input_file_path}")
 
         pattern = r"iScan-Pcd-1-(\d+)"
         i_value = int(re.search(pattern, input_file_path).group(1))
+        base_name, extension = os.path.splitext(os.path.basename(input_file_path))
 
         preprocess(input_file_path)
