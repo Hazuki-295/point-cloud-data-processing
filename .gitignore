@@ -16,7 +16,7 @@ _deps
 cmake-build-debug
 
 # ignore project point cloud data
-project/data
+project/pipeline/data
 
 # others
 __pycache__

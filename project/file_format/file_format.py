@@ -5,38 +5,38 @@ import sys
 import pdal
 
 
-def file_format(filename):
+def file_format(file_path):
     with open('ply_binary.json', 'r') as file:
         json_data = json.load(file)
 
-    # Input filename, readers.las -> filename
-    json_data[0]["filename"] = filename
+    # Input file path, readers.las -> filename
+    json_data[0]["filename"] = file_path
 
-    output_filepath = "../data/input"
-    os.makedirs(output_filepath, exist_ok=True)
-
-    base_name, _ = os.path.splitext(os.path.basename(filename))
-    output_filename = base_name + ".ply"
-
-    # Output filename, writers.ply -> filename
-    json_data[1]["filename"] = os.path.join(output_filepath, output_filename)
+    # Output file path, writers.ply -> filename
+    json_data[1]["filename"] = os.path.join(input_path, base_name + ".ply")
 
     # Convert the JSON object to a string
     json_string = json.dumps(json_data)
 
+    # Execute PDAL pipeline
     pipeline = pdal.Pipeline(json_string)
     pipeline.execute()
 
 
 if __name__ == "__main__":
-    filenames = []
+    # File directory
+    input_path = "../pipeline/data/input"
+    os.makedirs(input_path, exist_ok=True)
 
+    # List of file paths to process
     if len(sys.argv) > 1:
-        filenames = sys.argv[1:]
+        file_list = sys.argv[1:]
     else:
         print("Warning: No input filenames passed.")
         exit(-1)
 
-    for index, input_filename in enumerate(filenames):
-        print(f"File format conversion [{index + 1}]: {input_filename}")
-        file_format(input_filename)
+    for index, input_file_path in enumerate(file_list):
+        # Prompt current file path
+        base_name, extension = os.path.splitext(os.path.basename(input_file_path))
+        print(f"File format conversion [{index + 1}]: {input_file_path}")
+        file_format(input_file_path)

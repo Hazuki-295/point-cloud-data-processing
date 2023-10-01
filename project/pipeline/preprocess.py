@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 
 import open3d as o3d
@@ -15,7 +16,7 @@ def preprocess(file_path):
     filtered_pcd, mask = down_sampled_pcd.remove_statistical_outliers(nb_neighbors=20, std_ratio=2.0)
 
     # Save the preprocessed point cloud to an output file
-    preprocessed_filename = os.path.join(preprocessed_path, base_name + " - preprocessed" + extension)
+    preprocessed_filename = os.path.join(preprocessed_path, f"iScan-Pcd-1-{i_value} - preprocessed.ply")
     o3d.t.io.write_point_cloud(preprocessed_filename, filtered_pcd)
 
 
@@ -37,4 +38,8 @@ if __name__ == "__main__":
         # Prompt current file path
         base_name, extension = os.path.splitext(os.path.basename(input_file_path))
         print(f"Input [{index + 1}]: {input_file_path}")
+
+        pattern = r"iScan-Pcd-1-(\d+)"
+        i_value = int(re.search(pattern, input_file_path).group(1))
+
         preprocess(input_file_path)

@@ -1,11 +1,11 @@
 [
     {
         "type": "readers.las",
-        "filename": ""
+        "filename": null
     },
     {
         "type": "writers.ply",
-        "filename": "",
+        "filename": null,
         "storage_mode": "little endian",
         "dims": "X, Y, Z, Intensity=uchar",
         "sized_types": "false"
