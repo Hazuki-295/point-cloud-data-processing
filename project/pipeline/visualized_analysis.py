@@ -159,7 +159,7 @@ def visualization(file_path, every_k_meter=10):
         half_ideal_top_width = ideal_top_width / 2
 
         points = np.column_stack((x, z))
-        x_split_pos = [-2.8, -1.8, -half_sleeper_length, half_sleeper_length, 1.8, 2.8]
+        x_split_pos = [-3.0, -1.8, -half_sleeper_length, half_sleeper_length, 1.8, 3.0]
 
         left_remainder = points[x <= x_split_pos[0]]
         left_area = points[[x_split_pos[0] < x < x_split_pos[2] for x in x]]  # split later
