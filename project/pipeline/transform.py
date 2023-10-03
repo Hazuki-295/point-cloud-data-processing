@@ -23,13 +23,12 @@ def curve_fitting(point, point_num=None):
         point_num = point.shape[0]
 
     # Find the B-spline representation of an 3-D curve
-    point = np.transpose(point)  # (n, 3) -> (3, n)
-    tck, u = interpolate.splprep(point)  # B-spline representation
+    tck, u = interpolate.splprep(point.T)  # (n, 3) -> (3, n), B-spline representation
     u_prime = np.linspace(u.min(), u.max(), point_num)
     knots = interpolate.splev(u_prime, tck)
 
     # Return fitted curve point in a (n, 3) ndarray
-    curve_point = np.column_stack((knots[0], knots[1], knots[2]))
+    curve_point = np.array(knots).T
     return curve_point
 
 
@@ -37,17 +36,26 @@ def curve_fitting(point, point_num=None):
 def dbscan_debug(pcd, cluster, sorted_items, debug=False):
     coordinates = pcd.point.positions.numpy()
 
-    fig, ax = plt.subplots(subplot_kw={"projection": "3d"}, figsize=(8, 8))
-    ax.set(xlabel="x axis", ylabel="y axis", zlabel="z axis")
-    ax.set_title(f"DBSCAN clustering results — iScan-Pcd-1-{i_value}")
+    fig = plt.figure(figsize=(16, 9))
 
-    for i, item in enumerate(sorted_items[:5]):
-        val, count = item
-        point_cluster = coordinates[cluster == i + 1]
-        x, y, z = point_cluster[:, 0], point_cluster[:, 1], point_cluster[:, 2]
-        ax.scatter3D(x, y, z, label=f"cluster {i + 1}: {count}")
+    ax1 = fig.add_subplot(211, projection='3d')
+    ax1.set_title(f"DBSCAN clustering results — iScan-Pcd-1-{i_value}", fontsize=14)
 
-    ax.legend(loc="upper right")
+    ax2 = fig.add_subplot(223, projection='3d')
+    ax2.set_title("Left and Right Rails", fontsize=14)
+
+    ax3 = fig.add_subplot(224, projection='3d')
+    ax3.set_title("other clusters", fontsize=14)
+
+    for ax, indices in [[ax1, list(range(0, 5))], [ax2, list(range(0, 2))], [ax3, list(range(2, 5))]]:
+        for i in indices:
+            var, count = sorted_items[i]
+            point_cluster = coordinates[cluster == i + 1]
+            x, y, z = point_cluster[:, 0], point_cluster[:, 1], point_cluster[:, 2]
+            ax.scatter3D(x, y, z, label=f"cluster {i + 1}: {count}")
+        ax.legend(loc="upper right", bbox_to_anchor=(1.5, 0.6))
+
+    plt.tight_layout()
 
     if debug:
         plt.show()
