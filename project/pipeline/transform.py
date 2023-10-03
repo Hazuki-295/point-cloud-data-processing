@@ -37,15 +37,17 @@ def dbscan_debug(pcd, cluster, sorted_items, debug=False):
     coordinates = pcd.point.positions.numpy()
 
     fig = plt.figure(figsize=(16, 9))
+    fig.suptitle(f"DBSCAN clustering results — iScan-Pcd-1-{i_value}", fontsize=14)
+    gs = fig.add_gridspec(2, 4)
 
-    ax1 = fig.add_subplot(211, projection='3d')
-    ax1.set_title(f"DBSCAN clustering results — iScan-Pcd-1-{i_value}", fontsize=14)
+    ax1 = fig.add_subplot(gs[:, :2], projection='3d')
+    ax1.set_title(f"Five largest clusters", fontsize=12)
 
-    ax2 = fig.add_subplot(223, projection='3d')
-    ax2.set_title("Left and Right Rails", fontsize=14)
+    ax2 = fig.add_subplot(gs[0, 2:], projection='3d')
+    ax2.set_title("Left and Right Rails", fontsize=12)
 
-    ax3 = fig.add_subplot(224, projection='3d')
-    ax3.set_title("other clusters", fontsize=14)
+    ax3 = fig.add_subplot(gs[1, 2:], projection='3d')
+    ax3.set_title("other clusters", fontsize=12)
 
     for ax, indices in [[ax1, list(range(0, 5))], [ax2, list(range(0, 2))], [ax3, list(range(2, 5))]]:
         for i in indices:
@@ -53,7 +55,7 @@ def dbscan_debug(pcd, cluster, sorted_items, debug=False):
             point_cluster = coordinates[cluster == i + 1]
             x, y, z = point_cluster[:, 0], point_cluster[:, 1], point_cluster[:, 2]
             ax.scatter3D(x, y, z, label=f"cluster {i + 1}: {count}")
-        ax.legend(loc="upper right", bbox_to_anchor=(1.5, 0.6))
+        ax.legend(loc="upper right")
 
     plt.tight_layout()
 
