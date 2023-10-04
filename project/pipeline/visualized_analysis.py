@@ -123,7 +123,7 @@ def visualization(file_path, every_k_meter=10):
 
         # Plotting data
         ax_point.scatter3D(x, y, z, s=0.01, marker=',', c=intensity, cmap="gray")
-        ax_point.plot([0.0, 0.0], [y_min, y_max], [1.0, 1.0], label="Centre line", color='r', zorder=10)
+        ax_point.plot([0.0, 0.0], [np.min(y), np.max(y)], [0.2, 0.2], label="Centre line", color='r', zorder=10)
         ax_point.plot(point_left[:, 0], point_left[:, 1], point_left[:, 2], label="Left rail",
                       marker=',', markersize=10, color="cornflowerblue", zorder=10)
         ax_point.plot(point_right[:, 0], point_right[:, 1], point_right[:, 2], label="Right rail",
@@ -142,7 +142,7 @@ def visualization(file_path, every_k_meter=10):
         ax_depth.set_box_aspect(np.ptp(y_threshold) / np.ptp(x_threshold))  # Axis ratio is fixed
 
         # Interpolate the points onto the grid
-        grid_x, grid_y = np.mgrid[x_min:x_max:1200j, y_min:y_max:1000j]
+        grid_x, grid_y = np.mgrid[x_threshold[0]:x_threshold[1]:1200j, y_threshold[0]:y_threshold[1]:1000j]
         grid_z = griddata((x, y), z, (grid_x, grid_y), method="nearest")
 
         # Plot the interpolated grid
@@ -153,7 +153,7 @@ def visualization(file_path, every_k_meter=10):
         # 3. Cross-section image (left-bottom, 2D subplot)
         ideal_top_width = 3.1  # 3.1 m
         ideal_slope = 1 / 1.75  # 1:1.75
-        sleeper_length = 2.60  # 2600 mm
+        sleeper_length = 2.6  # 2600 mm
 
         half_sleeper_length = sleeper_length / 2
         half_ideal_top_width = ideal_top_width / 2
@@ -168,12 +168,13 @@ def visualization(file_path, every_k_meter=10):
         right_slope = points[[x_split_pos[4] < x < x_split_pos[5] for x in x]]
         right_remainder = points[x_split_pos[5] <= x]
 
+        # Find the left shoulder point
         shoulder_points = points[[-2.0 < x < -1.5 for x in x]]
         max_z_index = np.argmax(shoulder_points[:, 1])
         max_point = shoulder_points[max_z_index]
         x_split_pos[1] = max_point[0]  # update split position
 
-        # Linear fitting, compute the left shoulder point
+        # Linear fitting
         left_slope = left_area[left_area[:, 0] < x_split_pos[1]]
         left_shoulder = left_area[left_area[:, 0] >= x_split_pos[1]]
         coefficients = np.polyfit(left_slope[:, 0], left_slope[:, 1], 1)
@@ -183,38 +184,45 @@ def visualization(file_path, every_k_meter=10):
         # Axes setting
         ax_cross.set(ylabel="Z")
         ax_cross.set_title("Cross-section Image", loc="left", fontsize=12)
-        ax_cross.set_title("Inspection Profile")
+        ax_cross.set_title("Inspection Profile", fontsize=12)
         format_axes(ax_cross)
+        ax_cross.set_yticks([-1.0, 0.0, 1.0])
+
+        x_threshold = [x_min, x_max]
+        z_threshold = [-1.0, 1.0]
+        ax_cross.set_xlim(x_threshold)
+        ax_cross.set_ylim(z_threshold)
+        ax_cross.set_box_aspect(np.ptp(z_threshold) / np.ptp(x_threshold))
 
         # Plotting data
         regions = [left_slope, left_shoulder, sleeper_area, right_shoulder]
         labels = ["Left slope", "Left shoulder", "Sleeper region", "Right shoulder"]
         colors = ["cornflowerblue", "orange", "red", "limegreen"]
         for i in range(len(regions)):
-            ax_cross.scatter(regions[i][:, 0], regions[i][:, 1], marker='^', s=0.01, c=colors[i], label=labels[i])
+            ax_cross.scatter(regions[i][:, 0], regions[i][:, 1], s=0.1, c=colors[i], label=labels[i])
 
-        x_threshold = [x_min, x_max]
-        z_threshold = [-1.0, 1.0]
         point_on_top = [max_point[0], -half_sleeper_length, half_sleeper_length, x_split_pos[4]]
         colors = ["cornflowerblue", "red", "red", "limegreen"]
         for i in range(len(point_on_top)):
             ax_cross.plot([point_on_top[i], point_on_top[i]], [0, z_threshold[0]], linestyle='--', c=colors[i])
 
         remainder = np.vstack((left_remainder, right_slope, right_remainder))
-        ax_cross.scatter(remainder[:, 0], remainder[:, 1], s=0.01, marker='^', c="gray")
+        ax_cross.scatter(remainder[:, 0], remainder[:, 1], s=0.1, c="gray")
 
-        ax_cross.set_xlim(x_threshold)
-        ax_cross.set_ylim(z_threshold)
-        ax_cross.set_box_aspect(np.ptp(z_threshold) / np.ptp(x_threshold))
-        ax_cross.set_yticks([-1.0, 0.0, 1.0])
-
-        ax_cross.legend(loc="upper right", markerscale=50)
+        ax_cross.legend(loc="upper right", markerscale=20)
 
         # 3.2 Cross-section image (left-bottom 2)
         # Axes setting
         ax_cross_prime.set(xlabel="X", ylabel="Z")
-        ax_cross_prime.set_title("Comparison Diagram")
+        ax_cross_prime.set_title("Comparison Diagram", fontsize=12)
         format_axes(ax_cross_prime)
+        ax_cross_prime.set_yticks([-1.0, -0.5, 0.0, 0.5])
+
+        x_threshold = [-3.0, 3.0]
+        z_threshold = [-1.0, 0.5]
+        ax_cross_prime.set_xlim(x_threshold)
+        ax_cross_prime.set_ylim(z_threshold)
+        ax_cross_prime.set_box_aspect(np.ptp(z_threshold) / np.ptp(x_threshold))
 
         # Plotting data
         ballast_bed_points = np.vstack((left_slope, left_shoulder, sleeper_area, right_shoulder, right_slope))
@@ -233,8 +241,6 @@ def visualization(file_path, every_k_meter=10):
                             [0, -height_offset], c="red")
 
         # Plot vertical lines
-        x_threshold = [-3.0, 3.0]
-        z_threshold = [-1.0, 0.5]
         point_on_top = [-half_sleeper_length, half_sleeper_length]
         for i in range(len(point_on_top)):
             ax_cross_prime.plot([point_on_top[i], point_on_top[i]], [0, z_threshold[0]], linestyle="--", c="red")
@@ -249,11 +255,6 @@ def visualization(file_path, every_k_meter=10):
                                 xytext=(-2.8, 0.25),
                                 arrowprops=dict(facecolor="cornflowerblue", headwidth=10, headlength=10))
         ax_cross_prime.legend(loc="lower right")
-
-        ax_cross_prime.set_xlim(x_threshold)
-        ax_cross_prime.set_ylim(z_threshold)
-        ax_cross_prime.set_box_aspect(np.ptp(z_threshold) / np.ptp(x_threshold))
-        ax_cross_prime.set_yticks([-1.0, -0.5, 0.0, 0.5])
 
         # 4. Statistic data
         left_slope = 1 / slope
@@ -307,8 +308,6 @@ def update_json(slice_number, start_mileage, end_mileage, left_slope, width_of_t
 
     json_data["lastModified"] = now
     current_entry["lastModified"] = now
-
-    return new_entry
 
 
 if __name__ == "__main__":
