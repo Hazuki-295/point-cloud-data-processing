@@ -33,9 +33,7 @@ def curve_fitting(point, point_num=None):
 
 
 # If transform raise an exception, check the DBSCAN clustering results
-def dbscan_debug(pcd, cluster, sorted_items, debug=False):
-    coordinates = pcd.point.positions.numpy()
-
+def dbscan_debug(coordinates, cluster, sorted_items, debug=False):
     fig = plt.figure(figsize=(16, 9))
     fig.suptitle(f"DBSCAN clustering results — iScan-Pcd-1-{i_value}", fontsize=14)
     gs = fig.add_gridspec(2, 2)
@@ -141,8 +139,11 @@ def transform(file_path, every_k_meter=10, debug=False):
             cluster[index_of_mask[i]] = rank.index(val) + 1
     pcd.point.cluster = np.reshape(cluster, (len(cluster), 1))
 
+    # Coordinates in original coordinate system
+    coordinates = pcd.point.positions.numpy()
+
     # Save the DBSCAN clustering results for debug
-    dbscan_debug(pcd, cluster, sorted_items, debug)
+    dbscan_debug(coordinates, cluster, sorted_items, debug)
 
     # Skip transformation
     if excluded_file:
@@ -150,7 +151,6 @@ def transform(file_path, every_k_meter=10, debug=False):
 
     # Part 2. Curve fitting
     # Step 1. Fit two curves on both left and right rails
-    coordinates = pcd.point.positions.numpy()
     point_left = coordinates[cluster == 1]
     point_right = coordinates[cluster == 2]
     try:
