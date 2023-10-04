@@ -38,15 +38,15 @@ def dbscan_debug(pcd, cluster, sorted_items, debug=False):
 
     fig = plt.figure(figsize=(16, 9))
     fig.suptitle(f"DBSCAN clustering results — iScan-Pcd-1-{i_value}", fontsize=14)
-    gs = fig.add_gridspec(2, 4)
+    gs = fig.add_gridspec(2, 2)
 
-    ax1 = fig.add_subplot(gs[:, :2], projection='3d')
+    ax1 = fig.add_subplot(gs[:, 0], projection='3d')
     ax1.set_title(f"Five largest clusters", fontsize=12)
 
-    ax2 = fig.add_subplot(gs[0, 2:], projection='3d')
+    ax2 = fig.add_subplot(gs[0, 1], projection='3d')
     ax2.set_title("Left and Right Rails", fontsize=12)
 
-    ax3 = fig.add_subplot(gs[1, 2:], projection='3d')
+    ax3 = fig.add_subplot(gs[1, 1], projection='3d')
     ax3.set_title("other clusters", fontsize=12)
 
     for ax, indices in [[ax1, list(range(0, 5))], [ax2, list(range(0, 2))], [ax3, list(range(2, 5))]]:
@@ -70,7 +70,7 @@ def dbscan_debug(pcd, cluster, sorted_items, debug=False):
 
 def transform(file_path, every_k_meter=10, debug=False):
     # Whether to skip transformation
-    if input_file_path in file_list_exclude:
+    if input_file_path in file_path_exclude:
         excluded_file = True
         print(f"- Current input file path has been excluded, skip transformation.")
     else:
@@ -78,7 +78,7 @@ def transform(file_path, every_k_meter=10, debug=False):
 
     # Check if there is an entry corresponding to the previous file
     if i_value > 1 and not excluded_file:
-        previous_file = file_list_all_filtered[file_list_all_filtered.index(file_path) - 1]
+        previous_file = file_path_all_filtered[file_path_all_filtered.index(file_path) - 1]
         previous_i_value = int(re.search(pattern, previous_file).group(1))
         previous_filename = f"iScan-Pcd-1-{previous_i_value}.ply"
         previous_entry = next((entry for entry in json_data["files"] if entry["filename"] == previous_filename), None)
@@ -87,7 +87,7 @@ def transform(file_path, every_k_meter=10, debug=False):
             exit(1)
         previous_end_mileage = previous_entry["end_mileage"]
 
-        if previous_file == file_list_all[file_list_all.index(file_path) - 1]:
+        if previous_file == file_path_all[file_path_all.index(file_path) - 1]:
             previous_remainder_filename = f"iScan-Pcd-1-{previous_i_value} - remainder.ply"
             previous_remainder_filepath = os.path.join(preprocessed_path, previous_remainder_filename)
             remainder_pcd = o3d.t.io.read_point_cloud(previous_remainder_filepath)
@@ -150,13 +150,11 @@ def transform(file_path, every_k_meter=10, debug=False):
 
     # Part 2. Curve fitting
     # Step 1. Fit two curves on both left and right rails
+    coordinates = pcd.point.positions.numpy()
+    point_left = coordinates[cluster == 1]
+    point_right = coordinates[cluster == 2]
     try:
-        left_rail = pcd.select_by_mask(cluster == 1)
-        point_left = left_rail.point.positions.numpy()
         curve_point_left = curve_fitting(point_left)
-
-        right_rail = pcd.select_by_mask(cluster == 2)
-        point_right = right_rail.point.positions.numpy()
         curve_point_right = curve_fitting(point_right)
     except Exception as e:
         exception_name = type(e).__name__
@@ -202,9 +200,6 @@ def transform(file_path, every_k_meter=10, debug=False):
 
     # Part 4. Coordinate Transformation
     start_time = time.time()
-
-    # Coordinates in original coordinate system
-    coordinates = pcd.point.positions.numpy()
 
     # Prepare for coordinate calculation
     normal_z = np.array([a, b, c])
@@ -308,13 +303,13 @@ if __name__ == "__main__":
 
     # Files that should be skipped
     i_exclude = list(range(11, 17)) + list(range(28, 33)) + list(range(38, 49))
-    file_list_exclude = [os.path.join(preprocessed_path, f"iScan-Pcd-1-{i} - preprocessed.ply") for i in i_exclude]
+    file_path_exclude = [os.path.join(preprocessed_path, f"iScan-Pcd-1-{i} - preprocessed.ply") for i in i_exclude]
 
-    file_list_all = [os.path.join(preprocessed_path, f"iScan-Pcd-1-{i} - preprocessed.ply") for i in range(1, 49)]
-    file_list_all_filtered = []
-    for item in file_list_all:
-        if item not in file_list_exclude:
-            file_list_all_filtered.append(item)
+    file_path_all = [os.path.join(preprocessed_path, f"iScan-Pcd-1-{i} - preprocessed.ply") for i in range(1, 49)]
+    file_path_all_filtered = []
+    for item in file_path_all:
+        if item not in file_path_exclude:
+            file_path_all_filtered.append(item)
 
     json_file_path = os.path.join("data/", "analysis_results.json")
     initialize_json(json_file_path)
