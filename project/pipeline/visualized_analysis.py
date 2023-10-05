@@ -339,10 +339,9 @@ if __name__ == "__main__":
         current_file = f"iScan-Pcd-1-{i_value}.ply"
         current_entry = next((entry for entry in json_data["files"] if entry["filename"] == current_file), None)
         if current_entry is None:
-            print(f"Error: Entry for current file {current_file} not found in JSON data.")
-            exit(1)
-
-        visualization(input_file_path)
+            print(f"- Current input file path has been excluded.")
+        else:
+            visualization(input_file_path)
         print()
 
     # Save the updated JSON data to the output directory

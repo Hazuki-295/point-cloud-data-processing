@@ -81,7 +81,7 @@ def transform(file_path, every_k_meter=10, debug=False):
         previous_filename = f"iScan-Pcd-1-{previous_i_value}.ply"
         previous_entry = next((entry for entry in json_data["files"] if entry["filename"] == previous_filename), None)
         if previous_entry is None:
-            print(f"Error: Entry for previous file {previous_file} not found in JSON data.")
+            print(f"- Error: Entry for previous file {previous_file} not found in JSON data.")
             exit(1)
         previous_end_mileage = previous_entry["end_mileage"]
 
