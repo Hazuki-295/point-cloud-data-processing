@@ -258,7 +258,7 @@ def visualization(file_path, every_k_meter=10):
 
         # 4. Statistic data
         left_slope = 1 / slope
-        width_of_top_surface = x_split_pos[4] - max_point[0]
+        width_of_top_surface = 1.5 - max_point[0]
 
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         update_json(slice_number, y_min, y_max, left_slope, width_of_top_surface)
